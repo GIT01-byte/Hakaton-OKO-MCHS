@@ -1,43 +1,120 @@
+import asyncio
 import cv2
 from ultralytics import YOLO
-import time
+from mavsdk import System
+from mavsdk.mission import MissionItem, MissionPlan
 
+# 1. Загружаем модель YOLO
 model = YOLO("yolov8n.pt")
-# Укажи путь к видео или 0 для веб-камеры
-cap = cv2.VideoCapture(0)  # или "video.mp4"
 
-while cap.isOpened():
-    ret, frame = cap.read()
-    if not ret:
-        break
 
-    # Ищем людей, снижаем порог и увеличиваем разрешение
-    results = model(frame, conf=0.6, imgsz=1280, classes=[0], verbose=False)
+async def run():
+    drone = System()
+    await drone.connect(system_address="udp://:14540")  # Подключение к PX4 SITL
 
-    annotated_frame = results[0].plot()
+    print("Ожидание подключения к дрону...")
+    async for state in drone.core.connection_state():
+        if state.is_connected:
+            print("Дрон подключен!")
+            break
 
-    # Если кого-то нашли — отправляем "алерт" в консоль
-    if len(results[0].boxes) > 0:
-        print(
-            f"\n🚨 [ШТАБ] Получен пакет данных с дрона! Обнаружено объектов: {len(results[0].boxes)}"
-        )
-        for i, box in enumerate(results[0].boxes):
-            conf = float(box.conf[0])
-            # Имитация GPS координат (добавляем случайное смещение к базовой точке)
-            lat = 55.7558 + (i * 0.0001)
-            lon = 37.6173 + (i * 0.0001)
+    # 2. Создаем маршрут (пример: 3 точки)
+    mission_items = [
+        MissionItem(
+            latitude_deg=47.397750,
+            longitude_deg=8.545600,
+            relative_altitude_m=20.0,
+            speed_m_s=5.0,
+            is_fly_through=True,
+            gimbal_pitch_deg=0.0,
+            gimbal_yaw_deg=0.0,
+            camera_action=MissionItem.CameraAction.NONE,
+            loiter_time_s=0.0,
+            camera_photo_interval_s=0.0,
+            acceptance_radius_m=1.0,
+            yaw_deg=0.0,
+            camera_photo_distance_m=0.0,
+            vehicle_action=MissionItem.VehicleAction.NONE,
+        ),
+        MissionItem(
+            latitude_deg=47.397800,
+            longitude_deg=8.545700,
+            relative_altitude_m=20.0,
+            speed_m_s=5.0,
+            is_fly_through=True,
+            gimbal_pitch_deg=0.0,
+            gimbal_yaw_deg=0.0,
+            camera_action=MissionItem.CameraAction.NONE,
+            loiter_time_s=0.0,
+            camera_photo_interval_s=0.0,
+            acceptance_radius_m=1.0,
+            yaw_deg=0.0,
+            camera_photo_distance_m=0.0,
+            vehicle_action=MissionItem.VehicleAction.NONE,
+        ),
+        MissionItem(
+            latitude_deg=47.397850,
+            longitude_deg=8.545800,
+            relative_altitude_m=20.0,
+            speed_m_s=5.0,
+            is_fly_through=True,
+            gimbal_pitch_deg=0.0,
+            gimbal_yaw_deg=0.0,
+            camera_action=MissionItem.CameraAction.NONE,
+            loiter_time_s=0.0,
+            camera_photo_interval_s=0.0,
+            acceptance_radius_m=1.0,
+            yaw_deg=0.0,
+            camera_photo_distance_m=0.0,
+            vehicle_action=MissionItem.VehicleAction.NONE,
+        ),
+    ]
+    mission_plan = MissionPlan(mission_items)
 
-            print(
-                f"   └ Пострадавший #{i+1}: Уверенность {conf:.0%} | Координаты: Ш={lat:.4f}, Д={lon:.4f} | Фото прикреплено"
-            )
+    print("Загрузка миссии...")
+    await drone.mission.upload_mission(mission_plan)
 
-        # Чтобы консоль не спамила слишком быстро
-        time.sleep(1)
+    print("Взлет и старт миссии...")
+    await drone.action.arm()
+    await drone.mission.start_mission()
 
-    cv2.imshow("Drone Vision - Search & Rescue", annotated_frame)
+    # 3. Открываем камеру (в Gazebo это будет видеопоток, пока поставим вебку)
+    cap = cv2.VideoCapture("./drone_footage_people.mp4")
 
-    if cv2.waitKey(1) & 0xFF == ord("q"):
-        break
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
 
-cap.release()
-cv2.destroyAllWindows()
+        # Детекция YOLO
+        results = model(
+            frame, conf=0.45, classes=[0], verbose=False
+        )  # Ищем только людей
+
+        # Если нашли человека
+        if len(results[0].boxes) > 0:
+            print("🚨 ОБНАРУЖЕН ЧЕЛОВЕК! Отправка координат в штаб.")
+
+            # Получаем текущие GPS координаты
+            async for position in drone.telemetry.position():
+                print(
+                    f"Координаты: Широта {position.latitude_deg}, Долгота {position.longitude_deg}"
+                )
+                break
+
+            # Дрон зависает
+            await drone.action.hold()
+            await asyncio.sleep(3)  # Ждем 3 секунды
+            await drone.mission.start_mission()  # Продолжаем миссию
+
+        # Показываем экран
+        cv2.imshow("Drone Vision", results[0].plot())
+        if cv2.waitKey(1) & 0xFF == ord("q"):
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
+
+
+if __name__ == "__main__":
+    asyncio.run(run())

@@ -1,0 +1,4 @@
+docker run -it --rm --privileged --network host px4io/px4-sitl-gazebo:latest
+
+
+& 'C:\Python315\python.exe' 'c:/Programming/Projects/Hakaton/main.py'
