@@ -11,8 +11,13 @@ import math
 # --- Скорость и высота ---
 DRONE_MAX_SPEED = -3.0  # Наклон вперед (-2.0 медленно, -5.0 быстро)
 DRONE_TURN_SPEED = 1.5  # Скорость поворота
-FLIGHT_ALTITUDE = 10.0  # 🎯 РАБОЧАЯ ВЫСОТА ПАТРУЛИРОВАНИЯ (меняй здесь)
-START_ALTITUDE = 2.0  # Высота, на которую сбрасывается дрон при падении
+FLIGHT_ALTITUDE = 20.0  # 🎯 РАБОЧАЯ ВЫСОТА ПАТРУЛИРОВАНИЯ (меняй здесь)
+
+
+#
+START_X = 118.0  # Высота, на которую сбрасывается дрон при падении
+START_Y = -16.0  # Высота, на которую сбрасывается дрон при падении
+START_Z = 20.0  # Высота, на которую сбрасывается дрон при падении
 
 # --- Коэффициенты PID ---
 K_VERTICAL_THRUST = 68.5
@@ -88,7 +93,7 @@ def reset_drone():
         fr.setVelocity(0)
         rl.setVelocity(0)
         rr.setVelocity(0)
-        drone_node.getField("translation").setSFVec3f([0.0, 0.0, START_ALTITUDE])
+        drone_node.getField("translation").setSFVec3f([START_X, START_Y, START_Z])
         drone_node.getField("rotation").setSFRotation([0.0, 0.0, 1.0, 0.0])
         drone_node.setVelocity([0.0] * 6)
         drone_node.resetPhysics()
