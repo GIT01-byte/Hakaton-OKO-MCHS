@@ -1,0 +1,134 @@
+1. Сдружить нейросеть с симулятором и 3д моделью дрона
+
+2. Сделать мозг дрона, чтобы он определял где например человек, дым, пожар
+
+3. Написать визуализацию через бек Fastapi и выгружать на html страницу для визуализации
+
+
+
+
+Дрон сам летает по опреденной области если видит наводнение (огонь, дом разрушен) он отклоняется вверх, камера отпусскается вниз на 90 градусов,ч чтобы смотерл ровно вниз, он обнаруживает это и скидывает отчет
+
+
+
+дрон если вся область камеры синий цвет (т е наводнение) - остановка x y стоп z+ потом z+ пока область камеры не заметит пустое место - дальше фиксация масштбаа - отправка на сервер теккщих координат дрона - с саообщение о наводнениии.
+
+
+
+
+СВАЛКА
+
+летим по городской местности находим свалку возле завода (производство) чтобы вокруг територии пускала - 90 градусом вниз. если много много писклей разного цвета - иде тпроверка - если один цвет или 2 цвета - дальше 1 цавет - 2 цвет дальше - фиксирует собрала 
+
+Также с наводнением - фиксируем всю область
+
+
+"""Обнаружение ЧС на кадрах с дрона: пожар (цвет пламени) и наводнение (вода).
+
+Использование:
+    python detect_emergency.py <папка_с_кадрами> <папка_для_результатов>
+Для каждого кадра сохраняет разметку (*_det.jpg) и пишет results.json.
+"""
+import sys
+import os
+import json
+import glob
+import cv2
+import numpy as np
+
+# ---- Пороги HSV (OpenCV: H 0..179, S 0..255, V 0..255) ----
+FIRE_LOW = (0, 140, 150)      # оранжево-красное пламя: насыщенное и яркое
+FIRE_HIGH = (35, 255, 255)
+WATER_LOW = (95, 50, 90)      # синяя вода
+WATER_HIGH = (130, 255, 255)
+
+MIN_AREA_PCT = 0.5            # зоны меньше 0.5% кадра считаем шумом
+
+# степень опасности по доле кадра, занятой ЧС
+def severity(area_pct):
+    if area_pct < 3:
+        return "низкая"
+    if area_pct < 12:
+        return "средняя"
+    return "высокая"
+
+
+def clean(mask):
+    k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, k)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, k, iterations=2)
+    return mask
+
+
+def find_regions(mask, kind, frame_area):
+    regions = []
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    for c in contours:
+        area_pct = 100.0 * cv2.contourArea(c) / frame_area
+        if area_pct < MIN_AREA_PCT:
+            continue
+        x, y, w, h = cv2.boundingRect(c)
+        regions.append({
+            "type": kind,
+            "severity": severity(area_pct),
+            "area_pct": round(area_pct, 2),
+            "bbox": [int(x), int(y), int(w), int(h)],
+            "center_px": [int(x + w / 2), int(y + h / 2)],
+        })
+    return regions
+
+
+def detect(bgr):
+    hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
+    frame_area = bgr.shape[0] * bgr.shape[1]
+    fire = clean(cv2.inRange(hsv, FIRE_LOW, FIRE_HIGH))
+    water = clean(cv2.inRange(hsv, WATER_LOW, WATER_HIGH))
+    return find_regions(fire, "fire", frame_area) + find_regions(water, "flood", frame_area)
+
+
+COLORS = {"fire": (0, 0, 255), "flood": (255, 120, 0)}
+LABELS = {"fire": "FIRE", "flood": "FLOOD"}
+
+
+def draw(bgr, regions):
+    out = bgr.copy()
+    for r in regions:
+        x, y, w, h = r["bbox"]
+        col = COLORS[r["type"]]
+        cv2.rectangle(out, (x, y), (x + w, y + h), col, 2)
+        cv2.putText(out, "%s %.0f%%" % (LABELS[r["type"]], r["area_pct"]), (x + 3, max(y - 5, 12)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, col, 1, cv2.LINE_AA)
+    return out
+
+
+def main(src, dst):
+    os.makedirs(dst, exist_ok=True)
+    results = {}
+    for path in sorted(glob.glob(os.path.join(src, "*.jpg")) + glob.glob(os.path.join(src, "*.png"))):
+        img = cv2.imread(path)
+        regions = detect(img)
+        name = os.path.splitext(os.path.basename(path))[0]
+        cv2.imwrite(os.path.join(dst, name + "_det.jpg"), draw(img, regions))
+        results[os.path.basename(path)] = regions
+        print(os.path.basename(path), [(r["type"], r["severity"], r["area_pct"]) for r in regions])
+    with open(os.path.join(dst, "results.json"), "w", encoding="utf-8") as f:
+        json.dump(results, f, ensure_ascii=False, indent=2)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1], sys.argv[2])
+
+
+Как он работает
+Это классический алгоритм для технической записки:
+Кадр переводится в цветовое пространство HSV.
+Огонь: насыщенный и яркий оранжево-красный цвет. Песок похож по оттенку, но менее насыщенный, поэтому отсекается порогом насыщенности.
+Вода: насыщенный синий.
+Маски очищаются от шума, находятся контуры, мелкие зоны меньше 0,5% кадра отбрасываются.
+Степень опасности определяется по доле кадра: меньше 3% низкая, до 12% средняя, больше 12% высокая.
+На выходе рамки на картинке и файл results.json: тип, опасность, площадь, рамка и центр в пикселях.
+Запуск у вас: pip install opencv-python numpy, затем python detect_emergency.py папка_frames папка_результатов.
+
+
+
+МЕТОД НАВОДНЕНИЯ
