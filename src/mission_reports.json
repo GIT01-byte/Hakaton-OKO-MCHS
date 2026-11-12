@@ -1,1 +1,117 @@
-[]
+[
+    {
+        "timestamp": "2026-11-12 12:24:44",
+        "mission": "FLOOD",
+        "coordinates": {
+            "x": 47.99,
+            "y": 47.79,
+            "z": 19.68
+        },
+        "area_m2": 1.2,
+        "evidence": "alert_FLOOD_001_47_47.jpg",
+        "id": 1,
+        "severity": "LOW",
+        "edges_detected": 0
+    },
+    {
+        "timestamp": "2026-11-12 12:28:10",
+        "mission": "FLOOD",
+        "coordinates": {
+            "x": 214.6,
+            "y": 118.18,
+            "z": 17.07
+        },
+        "area_m2": 68.1,
+        "evidence": "alert_FLOOD_002_214_118.jpg",
+        "id": 2,
+        "severity": "LOW",
+        "edges_detected": 0
+    },
+    {
+        "timestamp": "2026-11-12 12:34:05",
+        "mission": "FIRE",
+        "coordinates": {
+            "x": -48.29,
+            "y": 14.13,
+            "z": 18.83
+        },
+        "area_m2": 0.0,
+        "evidence": "alert_FIRE_001_-48_14.jpg",
+        "id": 1,
+        "severity": "LOW",
+        "title": "Пожар",
+        "frame_coverage": 0.002
+    },
+    {
+        "timestamp": "2026-11-12 12:38:03",
+        "mission": "FLOOD",
+        "coordinates": {
+            "x": 47.91,
+            "y": 47.87,
+            "z": 18.2
+        },
+        "area_m2": 13.4,
+        "evidence": "alert_FLOOD_002_47_47.jpg",
+        "id": 2,
+        "severity": "LOW",
+        "edges_detected": 1
+    },
+    {
+        "timestamp": "2026-11-12 12:41:38",
+        "mission": "FIRE",
+        "coordinates": {
+            "x": -48.29,
+            "y": 14.13,
+            "z": 18.83
+        },
+        "area_m2": 0.0,
+        "evidence": "alert_FIRE_001_-48_14.jpg",
+        "id": 1,
+        "severity": "LOW",
+        "title": "Пожар",
+        "frame_coverage": 0.002
+    },
+    {
+        "timestamp": "2026-11-12 12:47:15",
+        "mission": "FLOOD",
+        "coordinates": {
+            "x": 47.91,
+            "y": 47.87,
+            "z": 18.2
+        },
+        "area_m2": 13.4,
+        "evidence": "alert_FLOOD_002_47_47.jpg",
+        "id": 2,
+        "severity": "LOW",
+        "edges_detected": 1
+    },
+    {
+        "timestamp": "2026-11-12 12:52:53",
+        "mission": "FLOOD",
+        "coordinates": {
+            "x": 216.47,
+            "y": 97.45,
+            "z": 20.33
+        },
+        "area_m2": 118.7,
+        "evidence": "alert_FLOOD_003_216_97.jpg",
+        "id": 3,
+        "severity": "LOW",
+        "edges_detected": 2
+    },
+    {
+        "timestamp": "2026-11-12 12:57:15",
+        "mission": "LANDSLIDE",
+        "coordinates": {
+            "x": 50.48,
+            "y": 49.93,
+            "z": 37.39
+        },
+        "area_m2": 0.0,
+        "evidence": "alert_LANDSLIDE_004_50_49.jpg",
+        "id": 4,
+        "severity": "LOW",
+        "title": "Оползень",
+        "frame_coverage": 0.258
+    }
+]

@@ -6,7 +6,10 @@ import math
 import time
 import config
 import vision
+import geo
 import fsm
+from avoidance import ObstacleAvoider
+from reporter import IncidentReporter
 from logger import Logger
 
 print("Инициализация контроллера...")
@@ -38,23 +41,76 @@ for m in [fl, fr, rl, rr]:
 
 drone_node = supervisor.getFromDef(config.DRONE_NODE_NAME)
 vision.start_threads()
+avoider = ObstacleAvoider(supervisor, timestep)
 
-mission = fsm.MissionFSM()
+
+def reset_drone(event="RESET"):
+    Logger.event(event)
+    if drone_node is not None:
+        fl.setVelocity(0)
+        fr.setVelocity(0)
+        rl.setVelocity(0)
+        rr.setVelocity(0)
+        drone_node.getField("translation").setSFVec3f(
+            [config.START_X, config.START_Y, config.START_Z]
+        )
+        drone_node.getField("rotation").setSFRotation([0.0, 0.0, 1.0, 0.0])
+        drone_node.setVelocity([0.0] * 6)
+        drone_node.resetPhysics()
+        avoider.reset()
+
+
+def draw_boxes(img, boxes, color, label):
+    h, w = img.shape[:2]
+    for b in boxes:
+        box = b["box"] if isinstance(b, dict) else b
+        p1 = (int(box[0] * w), int(box[1] * h))
+        p2 = (int(box[2] * w), int(box[3] * h))
+        cv2.rectangle(img, p1, p2, color, 2)
+        txt = (
+            label
+            if not isinstance(b, dict)
+            else f"{b.get('label', label)} {b['conf']:.2f}"
+        )
+        cv2.putText(
+            img,
+            txt,
+            (p1[0], max(12, p1[1] - 4)),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            color,
+            2,
+        )
+
+
+reporter = IncidentReporter()
+mission = fsm.MissionFSM(reporter)
 fire_detector = vision.ContrastFireDetector()
+person_tracker = vision.PersonTracker()
 small_img_buffer = np.zeros((config.YOLO_H, config.YOLO_W, 3), dtype=np.uint8)
 last_telemetry_time = 0.0
+last_frame_time = 0.0
 frame_count = 0
 last_annotated = None
 smooth_pitch_disturbance = 0.0
+last_dets = {"persons": [], "animals": [], "trash": [], "fire_ml": []}
 
 vision_data = {
     "water_ratio": 0.0,
     "wet_edges": [],
+    "water_world": None,
     "is_fire": False,
     "fire_score": 0.0,
+    "fire_world": None,
     "is_landslide": False,
+    "landslide_ratio": 0.0,
+    "landslide_world": None,
     "is_landfill": False,
+    "landfill_ratio": 0.0,
+    "landfill_world": None,
     "person_detected": False,
+    "person_world": None,
+    "person_conf": 0.0,
 }
 
 try:
@@ -75,17 +131,7 @@ try:
                 if key == 27:
                     raise SystemExit
                 elif key == ord("r") or key == ord("к"):
-                    Logger.event("RESET")
-                    fl.setVelocity(0)
-                    fr.setVelocity(0)
-                    rl.setVelocity(0)
-                    rr.setVelocity(0)
-                    drone_node.getField("translation").setSFVec3f(
-                        [config.START_X, config.START_Y, config.START_Z]
-                    )
-                    drone_node.getField("rotation").setSFRotation([0.0, 0.0, 1.0, 0.0])
-                    drone_node.setVelocity([0.0] * 6)
-                    drone_node.resetPhysics()
+                    reset_drone()
                     mission.reset()
             except vision.queue.Empty:
                 break
@@ -93,17 +139,7 @@ try:
         if altitude > 5.0:
             mission.has_taken_off = True
         if altitude < 0.5 and current_time > 3.0 and mission.has_taken_off:
-            Logger.event("CRASH")
-            fl.setVelocity(0)
-            fr.setVelocity(0)
-            rl.setVelocity(0)
-            rr.setVelocity(0)
-            drone_node.getField("translation").setSFVec3f(
-                [config.START_X, config.START_Y, config.START_Z]
-            )
-            drone_node.getField("rotation").setSFRotation([0.0, 0.0, 1.0, 0.0])
-            drone_node.setVelocity([0.0] * 6)
-            drone_node.resetPhysics()
+            reset_drone("CRASH")
             mission.reset()
             continue
 
@@ -119,63 +155,121 @@ try:
                     bgr_image, (config.YOLO_W, config.YOLO_H), dst=small_img_buffer
                 )
 
+                cam_total_pitch = (
+                    pitch + mission.target_cam_pitch
+                )  # + = камера смотрит вниз
+                pose = {
+                    "x": gps_x,
+                    "y": gps_y,
+                    "alt": altitude,
+                    "yaw": yaw,
+                    "pitch_total": cam_total_pitch,
+                    "aspect": camera.getHeight() / camera.getWidth(),
+                }
+
+                # нейросеть: кадр в повышенном разрешении + поза на момент съёмки
                 try:
-                    vision.frame_queue.put_nowait(small_img_buffer.copy())
+                    vision.frame_queue.put_nowait(
+                        (
+                            cv2.resize(
+                                bgr_image, (config.YOLO_DET_W, config.YOLO_DET_H)
+                            ),
+                            pose,
+                        )
+                    )
                 except vision.queue.Full:
                     pass
 
-                w_ratio, w_edges = vision.detect_flood_accurate(
-                    small_img_buffer, pitch, mission.target_cam_pitch
-                )
-
-                is_fire, fire_score = fire_detector.detect(small_img_buffer)
-                is_landslide = vision.detect_landslide(small_img_buffer)
-                is_landfill = vision.detect_landfill(small_img_buffer)
-
-                person_detected, yolo_boxes = False, []
+                # результаты нейросети (люди / животные / мусор)
                 try:
-                    person_detected, yolo_boxes = vision.result_queue.get_nowait()
+                    last_dets, det_pose = vision.result_queue.get_nowait()
+                    person_tracker.update(last_dets["persons"], det_pose)
                 except vision.queue.Empty:
                     pass
 
+                # классический CV
+                w_ratio, w_edges, w_c = vision.detect_flood_accurate(
+                    small_img_buffer, pitch, mission.target_cam_pitch
+                )
+                is_fire, fire_score = fire_detector.detect(small_img_buffer)
+                fire_c = fire_detector.info["centroid"]
+                if last_dets["fire_ml"]:  # дообученная модель огня, если подключена
+                    b = last_dets["fire_ml"][0]
+                    is_fire, fire_c = True, ((b[0] + b[2]) / 2, (b[1] + b[3]) / 2)
+                is_landslide, slide_ratio, slide_c = vision.detect_landslide(
+                    small_img_buffer
+                )
+                is_landfill, fill_ratio, fill_c = vision.detect_landfill(
+                    small_img_buffer, len(last_dets["trash"])
+                )
+
+                def world(c):
+                    return geo.pixel_to_world(c[0], c[1], pose) if c else None
+
+                vision_data = {
+                    "water_ratio": w_ratio,
+                    "wet_edges": w_edges,
+                    "water_world": world(w_c),
+                    "is_fire": is_fire,
+                    "fire_score": fire_score,
+                    "fire_world": world(fire_c),
+                    "is_landslide": is_landslide,
+                    "landslide_ratio": slide_ratio,
+                    "landslide_world": world(slide_c),
+                    "is_landfill": is_landfill,
+                    "landfill_ratio": fill_ratio,
+                    "landfill_world": world(fill_c),
+                    "person_detected": person_tracker.confirmed,
+                    "person_world": person_tracker.position,
+                    "person_conf": person_tracker.conf,
+                }
+
+                # объезд препятствий: зрение (поток) - на каждом новом кадре
+                avoider.update_vision(
+                    bgr_image,
+                    max(current_time - last_frame_time, 1e-3),
+                    cam_total_pitch,
+                )
+                last_frame_time = current_time
+
+                # --- Визуализация ---
                 last_annotated = bgr_image.copy()
-                cv2.putText(
-                    last_annotated,
-                    f"Mode: {mission.mode}",
-                    (20, 30),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.7,
-                    (0, 255, 255),
-                    2,
+                draw_boxes(last_annotated, last_dets["persons"], (0, 255, 0), "PERSON")
+                draw_boxes(
+                    last_annotated, last_dets["animals"], (0, 165, 255), "ANIMAL"
                 )
-                cv2.putText(
-                    last_annotated,
-                    f"Water: {w_ratio*100:.1f}%",
-                    (20, 60),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.6,
-                    (255, 0, 0),
-                    2,
-                )
-
-                # Вывод Fire Score для отладки (можно убрать позже)
-                cv2.putText(
-                    last_annotated,
-                    f"Fire Score: {fire_score:.4f}",
-                    (20, 90),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.6,
-                    (0, 165, 255),
-                    2,
-                )
-
-                vision_data["water_ratio"] = w_ratio
-                vision_data["wet_edges"] = w_edges
-                vision_data["is_fire"] = is_fire
-                vision_data["fire_score"] = fire_score
-                vision_data["is_landslide"] = is_landslide
-                vision_data["is_landfill"] = is_landfill
-                vision_data["person_detected"] = person_detected
+                draw_boxes(last_annotated, last_dets["trash"], (255, 0, 255), "TRASH")
+                draw_boxes(last_annotated, last_dets["fire_ml"], (0, 0, 255), "FIRE")
+                lines = [
+                    (f"Mode: {mission.mode}  Avoid: {avoider.state}", (0, 255, 255)),
+                    (
+                        f"Water: {w_ratio*100:.1f}%  Fire Score: {fire_score:.4f}",
+                        (255, 0, 0),
+                    ),
+                    (
+                        f"Slide: {slide_ratio*100:.0f}%  Landfill: {fill_ratio*100:.0f}%",
+                        (0, 128, 255),
+                    ),
+                    (
+                        f"Cam Pitch: {math.degrees(cam_total_pitch):.0f} deg",
+                        (0, 255, 0),
+                    ),
+                    (
+                        f"Persons: {len(last_dets['persons'])} (confirmed={person_tracker.confirmed})  "
+                        f"Animals: {len(last_dets['animals'])}",
+                        (0, 255, 0),
+                    ),
+                ]
+                for i, (txt, col) in enumerate(lines):
+                    cv2.putText(
+                        last_annotated,
+                        txt,
+                        (20, 30 + 28 * i),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.6,
+                        col,
+                        2,
+                    )
 
         frame_count += 1
 
@@ -185,6 +279,9 @@ try:
 
         if commands is None:
             break
+
+        # --- ОБЛЁТ ПРЕПЯТСТВИЙ (поверх команд миссии) ---
+        commands = avoider.process(commands, current_time, sensors, mission.mode)
 
         target_pitch_dist = commands["target_pitch"]
         yaw_disturbance = commands["target_yaw"]
@@ -258,7 +355,6 @@ try:
             except vision.queue.Full:
                 pass
 
-        # 🔧 ЛОГИРОВАНИЕ ТЕЛЕМЕТРИИ
         if current_time - last_telemetry_time >= config.TELEMETRY_INTERVAL:
             Logger.telemetry(
                 current_time,
@@ -268,6 +364,8 @@ try:
                 mission.mode,
                 vision_data.get("water_ratio", 0),
                 vision_data.get("fire_score", 0),
+                avoider.state,
+                len(last_dets["persons"]),
             )
             last_telemetry_time = current_time
 
@@ -285,4 +383,5 @@ finally:
         pass
     time.sleep(0.2)
     cv2.destroyAllWindows()
+    Logger.finish_mission()
     print("✅ Система остановлена.")

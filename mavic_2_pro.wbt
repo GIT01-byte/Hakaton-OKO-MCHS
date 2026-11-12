@@ -1,0 +1,769 @@
+#VRML_SIM R2025a utf8
+
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackground.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/floors/protos/Floor.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/appearances/protos/SandyGround.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/road/protos/Road.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/appearances/protos/Pavement.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/buildings/protos/Windmill.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/buildings/protos/SmallManor.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/factory/manhole/protos/SquareManhole.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/vehicles/protos/tesla/TeslaModel3Simple.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/trees/protos/Pine.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/trees/protos/Forest.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/robots/dji/mavic/protos/Mavic2Pro.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/humans/pedestrian/protos/Pedestrian.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/vehicles/protos/bmw/BmwX5.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/rocks/protos/Rock.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/factory/containers/protos/CardboardBox.proto"
+
+WorldInfo {
+  info [
+    "This demonstration shows a DJI Mavic 2 PRO flying over a rural area."
+    "After the drone has taken off, you can control it with the keyboard of your computer."
+  ]
+  title "DJI Mavic 2 PRO demo"
+  basicTimeStep 8
+  defaultDamping Damping {
+    linear 0.5
+    angular 0.5
+  }
+}
+Viewpoint {
+  orientation -0.3641236591465943 -0.08550147569659643 0.927417628958712 3.603329238795561
+  position 147.28559557432752 91.33972470974051 14.098706700393292
+  near 0.2
+  follow "Mavic 2 PRO"
+  followSmoothness 0.2
+}
+TexturedBackground {
+  luminosity 3
+}
+TexturedBackgroundLight {
+}
+Floor {
+  size 400 400
+  tileSize 6 6
+  appearance SandyGround {
+  }
+}
+CardboardBox {
+  translation 134.284 88.5106 0.3
+  rotation 0 0 1 -0.785395307179586
+}
+CardboardBox {
+  translation 134.075 83.3746 0.3
+  name "cardboard box(5)"
+}
+CardboardBox {
+  translation 134.369 83.096 0.3
+  name "cardboard box(9)"
+}
+CardboardBox {
+  translation 135.682 82.6055 0.3
+  name "cardboard box(17)"
+}
+CardboardBox {
+  translation 134.716 82.6614 0.3
+  name "cardboard box(21)"
+}
+CardboardBox {
+  translation 135.199 82.2151 0.3
+  name "cardboard box(19)"
+}
+CardboardBox {
+  translation 135.122 83.1937 0.3
+  name "cardboard box(20)"
+}
+CardboardBox {
+  translation 134.262 82.4748 0.3
+  name "cardboard box(18)"
+}
+CardboardBox {
+  translation 135.08 83.9673 0.3
+  name "cardboard box(12)"
+}
+CardboardBox {
+  translation 135.004 82.4433 0.9
+  name "cardboard box(13)"
+}
+CardboardBox {
+  translation 134.125 83.4247 0.9
+  name "cardboard box(23)"
+}
+CardboardBox {
+  translation 134.125 83.4247 0.9
+  name "cardboard box(24)"
+}
+CardboardBox {
+  translation 134.282 82.7636 0.9
+  name "cardboard box(22)"
+}
+CardboardBox {
+  translation 134.546 83.6061 0.9
+  name "cardboard box(15)"
+}
+CardboardBox {
+  translation 134.352 83.3211 1.5000000000000004
+  name "cardboard box(16)"
+}
+CardboardBox {
+  translation 134.548 82.8241 1.5
+  name "cardboard box(25)"
+}
+CardboardBox {
+  translation 135.08 83.9673 0.3
+  name "cardboard box(14)"
+}
+CardboardBox {
+  translation 133.856 82.8463 0.3
+  name "cardboard box(10)"
+}
+CardboardBox {
+  translation 134.646 83.4909 0.3
+  name "cardboard box(11)"
+}
+CardboardBox {
+  translation 134.411 83.9786 0.3
+  name "cardboard box(6)"
+}
+CardboardBox {
+  translation 130.788 89.227 0.9
+  rotation 0 0 1 0.785398
+  name "cardboard box(7)"
+}
+CardboardBox {
+  translation 134.104 87.5111 0.3
+  rotation 0 0 1 -0.523595307179586
+  name "cardboard box(1)"
+}
+CardboardBox {
+  translation 132.063 87.4771 0.9
+  rotation 0.7040630978699699 -0.7040620978698309 -0.09269151288480479 -0.3697053071795864
+  name "cardboard box(2)"
+}
+CardboardBox {
+  translation 133.769 86.5244 0.3
+  name "cardboard box(3)"
+}
+CardboardBox {
+  translation 132.649 87.4975 1.1
+  name "cardboard box(4)"
+}
+CardboardBox {
+  translation 133.775 83.6538 0.3
+  name "cardboard box(8)"
+}
+DEF WATER Fluid {
+  translation 131.102 33.5989 1.64
+  rotation 0 0 1 2.3562
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0 0.3 0.8
+        baseColorMap ImageTexture {
+          url [
+            "https://icons8.ru/blog/wp-content/uploads/2020/07/water-texture-gentle-movement.jpg"
+          ]
+        }
+        transparency 0.4
+        roughness 0.1
+        metalness 0.8
+        textureTransform TextureTransform {
+          translation -0.9400000000000526 0
+        }
+      }
+      geometry Box {
+        size 120 20 3
+      }
+    }
+  ]
+  name "water"
+  streamVelocity 0.5 0 0
+  boundingObject Box {
+    size 120 20 3
+  }
+}
+Pedestrian {
+  translation -38.8 5.81 1.27
+}
+Road {
+  translation -43.8 9.2 0.01
+  rotation 0 0 1 -0.3926996938995747
+  width 3
+  numberOfLanes 1
+  rightBorder FALSE
+  leftBorder FALSE
+  wayPoints [
+    0 0 0
+    100 0 0
+    200 200 0
+  ]
+  splineSubdivision 8
+  appearance Pavement {
+    type "black stone"
+  }
+}
+Rock {
+  translation 56.64 9.84 0
+  scale 100
+}
+Rock {
+  translation 61.72 10.52 4.38
+  name "rock(2)"
+  scale 50
+}
+Rock {
+  translation 57.0034 8.33711 4.22189
+  rotation 0.017181791420263944 0.13050693483129744 0.9912985049946005 2.88204
+  name "rock(6)"
+  scale 50
+}
+Rock {
+  translation 48.4668 8.20242 0.37
+  rotation 0 0 1 2.87979
+  name "rock(12)"
+  scale 50
+}
+Rock {
+  translation 51.3694 9.50063 4.71
+  rotation 0.5773509358508296 0.5773469358512743 0.5773529358506075 2.09439
+  name "rock(4)"
+  scale 70
+}
+Rock {
+  translation 57.577 10.82 4.71
+  rotation 0.5817029262089525 0.5012429364155832 0.6406069187367754 -1.892145307179586
+  name "rock(5)"
+  scale 80
+}
+Rock {
+  translation 57.4344 8.69519 12.0992
+  rotation 0.0719793054261785 -0.8712550656797878 -0.48552403660135474 3.01771
+  name "rock(17)"
+  scale 17
+  physics Physics {
+    mass 700
+  }
+}
+Rock {
+  translation 53.5504 7.72808 10.1923
+  rotation -0.6650038789936144 0.033861693838410103 0.7460718642422057 -1.6126453071795863
+  name "rock(14)"
+  scale 40
+  physics Physics {
+    mass 700
+  }
+}
+Rock {
+  translation 58.3402 6.17164 9.27363
+  rotation 0.2566049889150497 -0.6892859702238807 0.6775239707319815 -2.6989953071795862
+  name "rock(19)"
+  scale 34
+  physics Physics {
+    mass 700
+  }
+}
+Rock {
+  translation 55.1654 8.47373 13.8865
+  rotation -0.02696610185772415 -0.0021348801470742204 -0.9996340688658807 -2.0719353071795865
+  name "rock(16)"
+  scale 25
+  physics Physics {
+    mass 700
+  }
+}
+Rock {
+  translation 57.414 5.48794 11.8523
+  rotation 0.8462195862839803 -0.4983763452887077 0.18850313060010368 -1.2823853071795863
+  name "rock(18)"
+  scale 18
+  physics Physics {
+    mass 700
+  }
+}
+Rock {
+  translation 55.4365 3.9539 9.76824
+  rotation 0.2064439861410028 -0.9505419361882209 0.2320579844214839 -2.377265307179586
+  name "rock(13)"
+  scale 12
+  physics Physics {
+    mass 700
+  }
+}
+Rock {
+  translation 56.0859 7.10202 11.4329
+  rotation -0.0404856990200486 -0.6032056859224493 0.7965574735357679 -1.1942781345385116
+  name "rock(15)"
+  scale 10
+  physics Physics {
+    density -1
+    mass 350
+  }
+}
+Rock {
+  translation 65.7699 14.3509 4.34
+  rotation 0 0 1 1.309
+  name "rock(3)"
+  scale 50
+}
+Rock {
+  translation 59.8405 16.9983 5.69
+  rotation 0 0 1 -1.5707953071795862
+  name "rock(7)"
+  scale 85
+}
+Rock {
+  translation 62.8505 19.4583 1.48
+  rotation 0 0 1 3.14159
+  name "rock(10)"
+  scale 85
+}
+Rock {
+  translation 55.477 19.2933 1.48
+  rotation 0 0 -1 -2.6179953071795863
+  name "rock(11)"
+  scale 85
+}
+Rock {
+  translation 53.0105 14.8583 5.69
+  rotation 0 0 1 3.14159
+  name "rock(8)"
+  scale 85
+}
+Rock {
+  translation 45.576 24.9385 8.72
+  rotation 5.077418647149253e-07 0.38268289803621075 -0.9238797538372345 -3.1415853071795863
+  name "rock(20)"
+  scale 250
+}
+Rock {
+  translation 52.383 31.7366 15.30999999999994
+  rotation 0.7336060150220505 0.6350570130040625 0.2419190049537755 -1.875745307179586
+  name "rock(22)"
+  scale 250
+}
+Rock {
+  translation 51.2692 25.3189 8.72
+  rotation 0.4462989457340682 0.34245495836056167 -0.8267658994727136 1.49626
+  name "rock(21)"
+  scale 250
+}
+Rock {
+  translation 64.8131 26.2521 8.72
+  rotation 0.9999999999759588 -2.6535899999362045e-06 -6.406329999845984e-06 0.785398
+  name "rock(23)"
+  scale 250
+}
+Rock {
+  translation 48.7275 13.1158 3.36
+  rotation 0 0 -1 2.0944
+  name "rock(9)"
+  scale 85
+}
+Rock {
+  translation 62.95 12.91 0
+  name "rock(1)"
+  scale 100
+}
+Windmill {
+  translation -43.8656 -19.8433 0
+  rotation -7.19228e-09 2.6842e-08 1 0.523601
+}
+Windmill {
+  translation -44.258 -27.3356 0
+  rotation -7.19228e-09 2.6842e-08 1 0.523601
+  name "windmill(1)"
+}
+Windmill {
+  translation -46.2448 30.573 0
+  rotation -7.19228e-09 2.6842e-08 1 0.523601
+  name "windmill(2)"
+}
+Windmill {
+  translation -38.75 23.4 0
+  name "windmill(3)"
+}
+SmallManor {
+  translation -50.35 11.25 0
+  rotation 0 0 -1 0.392394
+}
+SmallManor {
+  translation 25.3998 2.21132 0
+  rotation 0 0 -1 1.4396
+  name "small manor(3)"
+}
+SmallManor {
+  translation -2.94005 -14.1017 0
+  rotation 0 0 -1 -1.4402053071795864
+  name "small manor(1)"
+}
+SmallManor {
+  translation 130.162 33.0142 0
+  rotation 0 0 1 2.2256
+  name "small manor(4)"
+}
+SmallManor {
+  translation 38.4873 4.24516 0
+  rotation 0 0 1 -1.4395953071795864
+  name "small manor(2)"
+}
+SquareManhole {
+  translation 0 0 -0.03
+}
+TeslaModel3Simple {
+  translation -41.5139 4.34169 0.31
+  rotation 0 0 1 -0.2618053071795865
+}
+Pine {
+  translation -14.0083 -14.4828 0
+  rotation 0 0 1 2.61799
+}
+Pine {
+  translation -19.6195 -24.3783 0
+  rotation 0 0 1 2.87979
+  name "pine tree(1)"
+}
+Pine {
+  translation -22.0129 6.20205 0
+  name "pine tree(3)"
+}
+Pine {
+  translation -10.6926 -25.1339 0
+  name "pine tree(4)"
+}
+Pine {
+  translation -14.3441 14.5621 0
+  name "pine tree(5)"
+}
+Pine {
+  translation -26.6328 -7.1707 0
+  name "pine tree(6)"
+}
+Pine {
+  translation -9.37029 14.0209 0
+  rotation 0 0 1 -2.6179953071795863
+  name "pine tree(2)"
+}
+Forest {
+  translation 0 0 -0.01
+  shape [
+    200 200
+    200 0
+    50 0
+    50 50
+    -50 50
+    -50 -50
+    50 -50
+    50 0
+    200 0
+    200 -200
+    -200 -200
+    -200 200
+  ]
+  density 0.01
+  type "cherry tree"
+  randomSeed 1
+  maxHeight 12
+  minHeight 6
+  maxRadius 6
+  minRadius 3
+}
+DEF DRONE Mavic2Pro {
+  translation 0.0237719 0.0174609 0.108459
+  rotation 0.001785439213029416 -0.0019219091528773662 0.9999965592300928 -2.7162153071795863
+  controller "<extern>"
+  supervisor TRUE
+  cameraSlot [
+    Camera {
+      width 400
+      height 240
+      near 0.2
+    }
+  ]
+}
+Pedestrian {
+  translation 43.3639 -2.05274 1.37
+  rotation 0 0 1 2.8798
+  name "pedestrian(1)"
+}
+BmwX5 {
+  translation 57.5695 1.67814 0.467044
+  rotation -0.0015287803290359944 -0.004819981037393812 0.9999872152250271 2.86702
+  name "vehicle(1)"
+}
+DEF SOLID_1 Solid {
+  translation -44.61 7.34 4.75003
+  rotation -1 0 0 -5.307179586466759e-06
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 1 0.05 0
+        roughness 0.2
+        metalness 0
+        emissiveColor 1 0.05 0
+        emissiveIntensity 0.8
+      }
+      geometry Cone {
+        bottomRadius 0.9
+        height 1.6
+      }
+    }
+  ]
+  name "fire_1"
+}
+DEF SOLID_11 Solid {
+  translation -49.26 5 0.88003
+  rotation -1 0 0 -5.307179586466759e-06
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 1 0.05 0
+        roughness 0.2
+        metalness 0
+        emissiveColor 1 0.05 0
+        emissiveIntensity 0.8
+      }
+      geometry Cone {
+        bottomRadius 0.9
+        height 1.6
+      }
+    }
+  ]
+  name "fire_1(3)"
+}
+DEF SOLID_111 Solid {
+  translation -50.01 7.33999 10.72
+  rotation -1 0 0 -5.307179586466759e-06
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 1 0.05 0
+        roughness 0.2
+        metalness 0
+        emissiveColor 1 0.05 0
+        emissiveIntensity 0.8
+      }
+      geometry Cone {
+        bottomRadius 0.9
+        height 1.6
+      }
+    }
+  ]
+  name "fire_1(2)"
+}
+DEF SOLID_1111 Solid {
+  translation -42.72 11.35 0.880043
+  rotation -1 0 0 -5.307179586466759e-06
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 1 0.05 0
+        roughness 0.2
+        metalness 0
+        emissiveColor 1 0.05 0
+        emissiveIntensity 0.8
+      }
+      geometry Cone {
+        bottomRadius 0.9
+        height 1.6
+      }
+    }
+  ]
+  name "fire_1(1)"
+}
+DEF SOLID_2 Solid {
+  translation -44.84 8.17 4.86
+  rotation -1 0 0 -5.307179586466759e-06
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 1 0.45 0
+        roughness 0.2
+        metalness 0
+        emissiveColor 1 0.45 0
+        emissiveIntensity 0.8
+      }
+      geometry Cone {
+        bottomRadius 0.6
+        height 1
+      }
+    }
+  ]
+  name "fire_2"
+}
+DEF SOLID_22 Solid {
+  translation -48.81 5.92 0.539998
+  rotation 1 0 0 5.307156870259904e-06
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 1 0.45 0
+        roughness 0.2
+        metalness 0
+        emissiveColor 1 0.45 0
+        emissiveIntensity 0.8
+      }
+      geometry Cone {
+        bottomRadius 0.6
+        height 1
+      }
+    }
+  ]
+  name "fire_2(3)"
+}
+DEF SOLID_222 Solid {
+  translation -49.3 7.58 10.33
+  rotation -1 0 0 -5.307179586466759e-06
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 1 0.45 0
+        roughness 0.2
+        metalness 0
+        emissiveColor 1 0.45 0
+        emissiveIntensity 0.8
+      }
+      geometry Cone {
+        bottomRadius 0.6
+        height 1
+      }
+    }
+  ]
+  name "fire_2(2)"
+}
+DEF SOLID_2222 Solid {
+  translation -43.38 10.97 1.67
+  rotation -1 0 0 -5.307179586466759e-06
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 1 0.45 0
+        roughness 0.2
+        metalness 0
+        emissiveColor 1 0.45 0
+        emissiveIntensity 0.8
+      }
+      geometry Cone {
+        bottomRadius 0.6
+        height 1
+      }
+    }
+  ]
+  name "fire_2(1)"
+}
+DEF SOLID_22222 Solid {
+  translation -46.97 10.97 0.86
+  rotation -1 0 0 -5.307179586466759e-06
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 1 0.45 0
+        roughness 0.2
+        metalness 0
+        emissiveColor 1 0.45 0
+        emissiveIntensity 0.8
+      }
+      geometry Cone {
+        bottomRadius 0.6
+        height 1
+      }
+    }
+  ]
+  name "fire_2(4)"
+}
+DEF SOLID_3 Solid {
+  translation -44.1 8.01 4.59
+  rotation -1 0 0 -5.307179586466759e-06
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 1 0.85 0
+        roughness 0.2
+        metalness 0
+        emissiveColor 1 0.85 0
+        emissiveIntensity 0.8
+      }
+      geometry Cone {
+        bottomRadius 0.5
+        height 0.8
+      }
+    }
+  ]
+  name "fire_3"
+}
+DEF SOLID_33 Solid {
+  translation -50.41 5.27 0.379992
+  rotation -1 0 0 -5.307179586466759e-06
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 1 0.85 0
+        roughness 0.2
+        metalness 0
+        emissiveColor 1 0.85 0
+        emissiveIntensity 0.8
+      }
+      geometry Cone {
+        bottomRadius 0.5
+        height 0.8
+      }
+    }
+  ]
+  name "fire_3(3)"
+}
+DEF SOLID_333 Solid {
+  translation -49.47 8.23 10.11
+  rotation -1 0 0 -5.307179586466759e-06
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 1 0.85 0
+        roughness 0.2
+        metalness 0
+        emissiveColor 1 0.85 0
+        emissiveIntensity 0.8
+      }
+      geometry Cone {
+        bottomRadius 0.5
+        height 0.8
+      }
+    }
+  ]
+  name "fire_3(2)"
+}
+DEF SOLID_3333 Solid {
+  translation -43.75 11.92 0.460006
+  rotation -1 0 0 -5.307179586466759e-06
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 1 0.85 0
+        roughness 0.2
+        metalness 0
+        emissiveColor 1 0.85 0
+        emissiveIntensity 0.8
+      }
+      geometry Cone {
+        bottomRadius 0.5
+        height 0.8
+      }
+    }
+  ]
+  name "fire_3(1)"
+}
+Robot {
+  translation 0 0 1.13
+  name "Supervisor"
+  controller "color_changer"
+  controllerArgs [
+    ""
+  ]
+  supervisor TRUE
+}
+Robot {
+  name "Supervisor2"
+  controller "Supervisor2"
+  supervisor TRUE
+}
