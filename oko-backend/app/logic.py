@@ -1,34 +1,58 @@
 """Чистая логика без зависимостей от FastAPI и базы (легко тестируется)."""
+
 import math
 from datetime import datetime, timezone
 from typing import Optional
 
 TYPES = {
-    "fire": "fire", "пожар": "fire", "огонь": "fire", "дым": "fire",
-    "flood": "flood", "наводнение": "flood", "вода": "flood", "подтопление": "flood",
-    "pollution": "pollution", "загрязнение": "pollution", "свалка": "pollution",
-    "утечка": "pollution", "нефть": "pollution",
-    "landslide": "landslide", "оползень": "landslide", "сель": "landslide",
+    "fire": "fire",
+    "пожар": "fire",
+    "огонь": "fire",
+    "дым": "fire",
+    "flood": "flood",
+    "наводнение": "flood",
+    "вода": "flood",
+    "подтопление": "flood",
+    "pollution": "pollution",
+    "загрязнение": "pollution",
+    "свалка": "pollution",
+    "утечка": "pollution",
+    "нефть": "pollution",
+    "landslide": "landslide",
+    "оползень": "landslide",
+    "сель": "landslide",
+    # reporter.py (дрон) для мусора отдаёт kind="LANDFILL" — это тоже pollution.
+    "landfill": "pollution",
 }
 TYPE_LABELS = {
-    "fire": "Пожар", "flood": "Наводнение", "pollution": "Загрязнение", "landslide": "Оползень",
+    "fire": "Пожар",
+    "flood": "Наводнение",
+    "pollution": "Загрязнение",
+    "landslide": "Оползень",
 }
 SEVERITIES = {
-    "low": "low", "низкая": "low",
-    "medium": "medium", "средняя": "medium",
-    "high": "high", "высокая": "high",
+    "low": "low",
+    "низкая": "low",
+    "medium": "medium",
+    "средняя": "medium",
+    "high": "high",
+    "высокая": "high",
+    # reporter.py для людей и крупных очагов возвращает "CRITICAL";
+    # в БД храним только low/medium/high, поэтому критическое = high.
+    "critical": "high",
+    "критическая": "high",
+    "критический": "high",
 }
 SEVERITY_LABELS = {"low": "Низкая", "medium": "Средняя", "high": "Высокая"}
 SEVERITY_RANK = {"low": 1, "medium": 2, "high": 3}
 METERS_PER_DEG_LAT = 111_320.0
 
-# Какие типы ЧС видит каждая роль (None = все). Разграничение по службам:
-# пожарному не нужны свалки, экологу — пожары.
+# Какие типы ЧС видит каждая роль (None = все).
 ROLE_TYPES = {
-    "operator": None,                                   # оператор ЦУКС: всё
-    "viewer": None,                                     # наблюдатель: всё, только чтение
-    "firefighter": {"fire", "flood", "landslide"},      # МЧС/пожарная охрана
-    "ecologist": {"pollution"},                         # экологическая служба
+    "operator": None,
+    "viewer": None,
+    "firefighter": {"fire", "flood", "landslide"},
+    "ecologist": {"pollution"},
 }
 ROLES = set(ROLE_TYPES)
 
@@ -36,14 +60,19 @@ ROLES = set(ROLE_TYPES)
 def normalize_type(value: str) -> str:
     key = (value or "").strip().lower()
     if key not in TYPES:
-        raise ValueError("неизвестный тип ЧС: %r (допустимо: fire, flood, pollution, landslide)" % value)
+        raise ValueError(
+            "неизвестный тип ЧС: %r (допустимо: fire, flood, pollution, landslide)"
+            % value
+        )
     return TYPES[key]
 
 
 def normalize_severity(value: str) -> str:
     key = (value or "").strip().lower()
     if key not in SEVERITIES:
-        raise ValueError("неизвестная степень: %r (допустимо: low, medium, high)" % value)
+        raise ValueError(
+            "неизвестная степень: %r (допустимо: low, medium, high)" % value
+        )
     return SEVERITIES[key]
 
 
@@ -53,7 +82,7 @@ def allowed_types(role: str) -> Optional[set]:
 
 
 def max_severity(a: str, b: str) -> str:
-    return a if SEVERITY_RANK[a] >= SEVERITY_RANK[b] else b
+    return a if SEVERITY_RANK.get(a, 0) >= SEVERITY_RANK.get(b, 0) else b
 
 
 def xy_to_latlon(x: float, y: float, base_lat: float, base_lon: float):

@@ -1,32 +1,66 @@
 """Око МЧС: серверная часть (приём данных от дрона, хранение, выдача панели мониторинга)."""
+
 import os
 import uuid
 from contextlib import asynccontextmanager
 from typing import List, Optional
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, Response, UploadFile
+from fastapi import (
+    Depends,
+    FastAPI,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    UploadFile,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from . import config
-from .auth import (check_type_visible, current_user, drone_auth, operator_or_drone,
-                   require_roles, visible_types_clause)
+from .auth import (
+    check_type_visible,
+    current_user,
+    drone_auth,
+    operator_or_drone,
+    require_roles,
+    visible_types_clause,
+)
 from .db import Base, SessionLocal, engine, get_db
-from .logic import (allowed_types, as_utc, distance, max_severity, normalize_severity,
-                    normalize_type, utcnow)
+from .logic import (
+    allowed_types,
+    as_utc,
+    distance,
+    max_severity,
+    normalize_severity,
+    normalize_type,
+    utcnow,
+)
 from .models import Drone, Incident, Mission, Telemetry, User
-from .schemas import (DroneOut, IncidentCreated, IncidentOut, IncidentPatch,
-                      LoginIn, LoginOut, MissionCreate, MissionOut, StatsOut,
-                      TelemetryIn, TelemetryOut, UserOut)
+from .schemas import (
+    DroneOut,
+    IncidentCreated,
+    IncidentOut,
+    IncidentPatch,
+    LoginIn,
+    LoginOut,
+    MissionCreate,
+    MissionOut,
+    StatsOut,
+    TelemetryIn,
+    TelemetryOut,
+    UserOut,
+)
 from .security import hash_password, make_token, verify_password
 
 os.makedirs(os.path.join(config.MEDIA_DIR, "incidents"), exist_ok=True)
 
 ALLOWED_IMAGE_EXT = {".jpg", ".jpeg", ".png"}
 
-# Демо-пользователи (создаются при первом запуске). Пароли задавайте через seed!
 DEFAULT_USERS = [
     ("operator", "operator123", "operator", "Оператор ЦУКС"),
     ("fire", "fire123", "firefighter", "Пожарная служба"),
@@ -43,13 +77,19 @@ async def lifespan(app: FastAPI):
             db.add(Drone(name="Mavic-1", model="DJI Mavic 2 Pro"))
         if db.scalar(select(func.count(User.id))) == 0:
             for username, password, role, name in DEFAULT_USERS:
-                db.add(User(username=username, password_hash=hash_password(password),
-                            role=role, display_name=name))
+                db.add(
+                    User(
+                        username=username,
+                        password_hash=hash_password(password),
+                        role=role,
+                        display_name=name,
+                    )
+                )
         db.commit()
     yield
 
 
-app = FastAPI(title="Око МЧС API", version="2.0", lifespan=lifespan)
+app = FastAPI(title="Око МЧС API", version="2.1", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=config.CORS_ORIGINS,
@@ -73,18 +113,28 @@ def login(body: LoginIn, db: Session = Depends(get_db)):
         raise HTTPException(401, "Неверный логин или пароль")
     token = make_token(user.id, user.username, user.role, user.display_name)
     allowed = allowed_types(user.role)
-    return LoginOut(token=token, user=UserOut(
-        id=user.id, username=user.username, role=user.role, display_name=user.display_name,
-        allowed_types=sorted(allowed) if allowed is not None else None,
-    ))
+    return LoginOut(
+        token=token,
+        user=UserOut(
+            id=user.id,
+            username=user.username,
+            role=user.role,
+            display_name=user.display_name,
+            allowed_types=sorted(allowed) if allowed is not None else None,
+        ),
+    )
 
 
 @app.get("/api/me", response_model=UserOut)
 def me(user: dict = Depends(current_user)):
     allowed = allowed_types(user["role"])
-    return UserOut(id=int(user["sub"]), username=user["username"], role=user["role"],
-                   display_name=user.get("name", ""),
-                   allowed_types=sorted(allowed) if allowed is not None else None)
+    return UserOut(
+        id=int(user["sub"]),
+        username=user["username"],
+        role=user["role"],
+        display_name=user.get("name", ""),
+        allowed_types=sorted(allowed) if allowed is not None else None,
+    )
 
 
 # ---------------------------------------------------------------- дроны и миссии
@@ -94,7 +144,9 @@ def list_drones(user: dict = Depends(current_user), db: Session = Depends(get_db
 
 
 @app.get("/api/drones/{drone_id}/position", response_model=TelemetryOut)
-def drone_position(drone_id: int, user: dict = Depends(current_user), db: Session = Depends(get_db)):
+def drone_position(
+    drone_id: int, user: dict = Depends(current_user), db: Session = Depends(get_db)
+):
     """Последнее известное положение дрона."""
     row = db.scalars(
         select(Telemetry)
@@ -114,8 +166,11 @@ def list_missions(user: dict = Depends(current_user), db: Session = Depends(get_
 
 
 @app.post("/api/missions", response_model=MissionOut, status_code=201)
-def start_mission(body: MissionCreate, user: dict = Depends(operator_or_drone),
-                  db: Session = Depends(get_db)):
+def start_mission(
+    body: MissionCreate,
+    user: dict = Depends(operator_or_drone),
+    db: Session = Depends(get_db),
+):
     if db.get(Drone, body.drone_id) is None:
         raise HTTPException(404, "Дрон не найден")
     mission = Mission(drone_id=body.drone_id)
@@ -125,8 +180,11 @@ def start_mission(body: MissionCreate, user: dict = Depends(operator_or_drone),
 
 
 @app.post("/api/missions/{mission_id}/finish", response_model=MissionOut)
-def finish_mission(mission_id: int, user: dict = Depends(operator_or_drone),
-                   db: Session = Depends(get_db)):
+def finish_mission(
+    mission_id: int,
+    user: dict = Depends(operator_or_drone),
+    db: Session = Depends(get_db),
+):
     mission = db.get(Mission, mission_id)
     if mission is None:
         raise HTTPException(404, "Миссия не найдена")
@@ -137,26 +195,40 @@ def finish_mission(mission_id: int, user: dict = Depends(operator_or_drone),
 
 
 @app.get("/api/missions/{mission_id}/track", response_model=List[TelemetryOut])
-def mission_track(mission_id: int, user: dict = Depends(current_user), db: Session = Depends(get_db)):
+def mission_track(
+    mission_id: int, user: dict = Depends(current_user), db: Session = Depends(get_db)
+):
     """Весь пройденный путь дрона (для линии маршрута на карте)."""
     if db.get(Mission, mission_id) is None:
         raise HTTPException(404, "Миссия не найдена")
     return db.scalars(
-        select(Telemetry).where(Telemetry.mission_id == mission_id).order_by(Telemetry.time, Telemetry.id)
+        select(Telemetry)
+        .where(Telemetry.mission_id == mission_id)
+        .order_by(Telemetry.time, Telemetry.id)
     ).all()
 
 
 # ---------------------------------------------------------------- телеметрия (дрон)
 @app.post("/api/telemetry", response_model=TelemetryOut, status_code=201)
 def post_telemetry(body: TelemetryIn, request: Request, db: Session = Depends(get_db)):
-    """Контроллер дрона шлёт положение. Требуется ключ X-API-Key."""
+    """Контроллер дрона шлёт положение + обогащение от CV. Требуется X-API-Key."""
     drone_auth(request)
     if db.get(Mission, body.mission_id) is None:
         raise HTTPException(404, "Миссия не найдена")
     row = Telemetry(
-        mission_id=body.mission_id, x=body.x, y=body.y, z=body.z, yaw=body.yaw,
-        battery=body.battery, state=body.state,
+        mission_id=body.mission_id,
+        x=body.x,
+        y=body.y,
+        z=body.z,
+        yaw=body.yaw,
+        battery=body.battery,
+        state=body.state,
         time=as_utc(body.time) or utcnow(),
+        # ── обогащение от детекторов дрона ──
+        water_pct=body.water_pct,
+        fire_score=body.fire_score,
+        avoid=body.avoid,
+        persons=body.persons,
     )
     db.add(row)
     db.commit()
@@ -205,8 +277,7 @@ def create_incident(
     """Дрон сообщает о найденной ЧС (multipart/form-data, фото необязательно).
 
     Требуется ключ X-API-Key. Если рядом (MERGE_RADIUS_M) уже есть незакрытая
-    ЧС того же типа в этой миссии, она обновляется (счётчик, степень, площадь,
-    люди, фото), а не создаётся заново.
+    ЧС того же типа в этой миссии, она обновляется, а не создаётся заново.
     """
     drone_auth(request)
     if db.get(Mission, mission_id) is None:
@@ -232,17 +303,25 @@ def create_incident(
 
     if existing is None:
         inc = Incident(
-            mission_id=mission_id, type=inc_type, severity=inc_sev, x=x, y=y,
-            area_pct=area_pct, people_count=max(people_count, 0), subtype=subtype,
-            note=note, image_path=new_rel,
-            first_seen=now, last_seen=now,
+            mission_id=mission_id,
+            type=inc_type,
+            severity=inc_sev,
+            x=x,
+            y=y,
+            area_pct=area_pct,
+            people_count=max(people_count, 0),
+            subtype=subtype,
+            note=note,
+            image_path=new_rel,
+            first_seen=now,
+            last_seen=now,
         )
         db.add(inc)
         db.commit()
         return IncidentCreated.model_validate(inc).model_copy(update={"merged": False})
 
     n = existing.detections
-    existing.x = (existing.x * n + x) / (n + 1)   # уточняем положение (среднее по кадрам)
+    existing.x = (existing.x * n + x) / (n + 1)
     existing.y = (existing.y * n + y) / (n + 1)
     existing.detections = n + 1
     existing.last_seen = now
@@ -252,7 +331,7 @@ def create_incident(
         existing.subtype = subtype
     if new_rel is not None:
         if area_pct >= existing.area_pct or existing.image_path is None:
-            _remove_image(existing.image_path)       # оставляем самый «крупный» кадр
+            _remove_image(existing.image_path)
             existing.image_path = new_rel
         else:
             _remove_image(new_rel)
@@ -292,11 +371,15 @@ def list_incidents(
         raise HTTPException(422, str(e))
     if status:
         q = q.where(Incident.status == status)
-    return db.scalars(q.order_by(Incident.last_seen.desc(), Incident.id.desc()).limit(limit)).all()
+    return db.scalars(
+        q.order_by(Incident.last_seen.desc(), Incident.id.desc()).limit(limit)
+    ).all()
 
 
 @app.get("/api/incidents/{incident_id}", response_model=IncidentOut)
-def get_incident(incident_id: int, user: dict = Depends(current_user), db: Session = Depends(get_db)):
+def get_incident(
+    incident_id: int, user: dict = Depends(current_user), db: Session = Depends(get_db)
+):
     inc = db.get(Incident, incident_id)
     if inc is None:
         raise HTTPException(404, "ЧС не найдена")
@@ -305,8 +388,12 @@ def get_incident(incident_id: int, user: dict = Depends(current_user), db: Sessi
 
 
 @app.patch("/api/incidents/{incident_id}", response_model=IncidentOut)
-def patch_incident(incident_id: int, body: IncidentPatch,
-                   user: dict = Depends(require_roles("operator")), db: Session = Depends(get_db)):
+def patch_incident(
+    incident_id: int,
+    body: IncidentPatch,
+    user: dict = Depends(require_roles("operator")),
+    db: Session = Depends(get_db),
+):
     """Оператор меняет статус (new / confirmed / closed) или добавляет заметку."""
     inc = db.get(Incident, incident_id)
     if inc is None:
@@ -324,7 +411,6 @@ def patch_incident(incident_id: int, body: IncidentPatch,
 def stats(user: dict = Depends(current_user), db: Session = Depends(get_db)):
     """Сводка только по ЧС, доступным роли пользователя."""
     clause = visible_types_clause(user, Incident)
-    base = select(Incident) if clause is None else select(Incident).where(clause)
 
     def grouped(col):
         q = select(col, func.count(Incident.id)).group_by(col)
@@ -340,12 +426,15 @@ def stats(user: dict = Depends(current_user), db: Session = Depends(get_db)):
         by_type=grouped(Incident.type),
         by_severity=grouped(Incident.severity),
         by_status=grouped(Incident.status),
-        active_missions=db.scalar(select(func.count(Mission.id)).where(Mission.status == "active")) or 0,
+        active_missions=db.scalar(
+            select(func.count(Mission.id)).where(Mission.status == "active")
+        )
+        or 0,
     )
 
 
 # ---------------------------------------------------------------- панель мониторинга (React)
-# ВАЖНО: монтирование — последним, после всех /api-маршрутов, иначе статика
-# перехватит запросы к API. Если frontend/dist не собран, API работает сам по себе.
 if os.path.isdir(config.FRONTEND_DIR):
-    app.mount("/", StaticFiles(directory=config.FRONTEND_DIR, html=True), name="frontend")
+    app.mount(
+        "/", StaticFiles(directory=config.FRONTEND_DIR, html=True), name="frontend"
+    )

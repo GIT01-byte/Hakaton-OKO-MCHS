@@ -8,6 +8,7 @@ import config
 import vision
 import geo
 import fsm
+import profiler
 from avoidance import ObstacleAvoider
 from reporter import IncidentReporter
 from logger import Logger
@@ -88,7 +89,9 @@ mission = fsm.MissionFSM(reporter)
 fire_detector = vision.ContrastFireDetector()
 person_tracker = vision.PersonTracker()
 small_img_buffer = np.zeros((config.YOLO_H, config.YOLO_W, 3), dtype=np.uint8)
+bgr_buffer = np.zeros((config.YOLO_DET_H, config.YOLO_DET_W, 3), dtype=np.uint8)
 last_telemetry_time = 0.0
+last_prof_report = 0.0
 last_frame_time = 0.0
 frame_count = 0
 last_annotated = None
@@ -115,259 +118,290 @@ vision_data = {
 
 try:
     while True:
-        if supervisor.step(timestep) == -1:
-            break
+        with profiler.measure("loop.total"):
+            # 🔧 Если симуляция на паузе, цикл завершится. Убедись, что Webots работает!
+            with profiler.measure("step.webots"):
+                if supervisor.step(timestep) == -1:
+                    break
 
-        current_time = supervisor.getTime()
-        roll, pitch, yaw = imu.getRollPitchYaw()
-        gps_x, gps_y, altitude = gps.getValues()
-        roll_velocity = gyro.getValues()[0]
-        pitch_velocity = gyro.getValues()[1]
+            current_time = supervisor.getTime()
+            roll, pitch, yaw = imu.getRollPitchYaw()
+            gps_x, gps_y, altitude = gps.getValues()
+            roll_velocity = gyro.getValues()[0]
+            pitch_velocity = gyro.getValues()[1]
 
-        # --- Клавиши ---
-        while True:
-            try:
-                key = vision.key_queue.get_nowait()
-                if key == 27:
-                    raise SystemExit
-                elif key == ord("r") or key == ord("к"):
-                    reset_drone()
-                    mission.reset()
-            except vision.queue.Empty:
+            # --- Клавиши ---
+            while True:
+                try:
+                    key = vision.key_queue.get_nowait()
+                    if key == 27:
+                        raise SystemExit
+                    elif key == ord("r") or key == ord("к"):
+                        reset_drone()
+                        mission.reset()
+                except vision.queue.Empty:
+                    break
+
+            if altitude > 5.0:
+                mission.has_taken_off = True
+            if altitude < 0.5 and current_time > 3.0 and mission.has_taken_off:
+                reset_drone("CRASH")
+                mission.reset()
+                continue
+
+            # --- ЗРЕНИЕ ---
+            if frame_count % config.FRAME_SKIP == 0:
+                with profiler.measure("vision.capture"):
+                    raw_image = camera.getImage()
+                    bgr_image = None
+                    pose = None
+                    if raw_image:
+                        image = np.frombuffer(raw_image, np.uint8).reshape(
+                            (camera.getHeight(), camera.getWidth(), 4)
+                        )
+                        if bgr_buffer.shape[:2] != image.shape[:2]:
+                            bgr_buffer = np.zeros(
+                                (camera.getHeight(), camera.getWidth(), 3), dtype=np.uint8
+                            )
+                        cv2.cvtColor(image, cv2.COLOR_BGRA2BGR, dst=bgr_buffer)
+                        bgr_image = bgr_buffer
+                        cv2.resize(
+                            bgr_image, (config.YOLO_W, config.YOLO_H), dst=small_img_buffer
+                        )
+
+                        cam_total_pitch = pitch + mission.target_cam_pitch
+                        pose = {
+                            "x": gps_x,
+                            "y": gps_y,
+                            "alt": altitude,
+                            "yaw": yaw,
+                            "pitch_total": cam_total_pitch,
+                            "aspect": camera.getHeight() / camera.getWidth(),
+                        }
+
+                if bgr_image is not None:
+                    with profiler.measure("vision.queue_put"):
+                        try:
+                            vision.frame_queue.put_nowait(
+                                (
+                                    cv2.resize(
+                                        bgr_image, (config.YOLO_DET_W, config.YOLO_DET_H)
+                                    ),
+                                    pose,
+                                )
+                            )
+                        except vision.queue.Full:
+                            pass
+
+                    with profiler.measure("vision.results"):
+                        try:
+                            last_dets, det_pose = vision.result_queue.get_nowait()
+                            person_tracker.update(last_dets["persons"], det_pose)
+                        except vision.queue.Empty:
+                            pass
+
+                    with profiler.measure("vision.detect_flood"):
+                        w_ratio, w_edges, w_c = vision.detect_flood_accurate(
+                            small_img_buffer, pitch, mission.target_cam_pitch
+                        )
+                    with profiler.measure("vision.detect_fire"):
+                        is_fire, fire_score = fire_detector.detect(bgr_image)
+                    fire_c = fire_detector.info["centroid"]
+                    if last_dets["fire_ml"]:
+                        b = last_dets["fire_ml"][0]
+                        is_fire, fire_c = True, ((b[0] + b[2]) / 2, (b[1] + b[3]) / 2)
+                    with profiler.measure("vision.detect_landslide"):
+                        is_landslide, slide_ratio, slide_c = vision.detect_landslide(
+                            small_img_buffer
+                        )
+                    with profiler.measure("vision.detect_landfill"):
+                        is_landfill, fill_ratio, fill_c = vision.detect_landfill(
+                            small_img_buffer, len(last_dets["trash"])
+                        )
+
+                    with profiler.measure("vision.geo_projection"):
+                        def world(c):
+                            return geo.pixel_to_world(c[0], c[1], pose) if c else None
+
+                        vision_data = {
+                            "water_ratio": w_ratio,
+                            "wet_edges": w_edges,
+                            "water_world": world(w_c),
+                            "is_fire": is_fire,
+                            "fire_score": fire_score,
+                            "fire_world": world(fire_c),
+                            "is_landslide": is_landslide,
+                            "landslide_ratio": slide_ratio,
+                            "landslide_world": world(slide_c),
+                            "is_landfill": is_landfill,
+                            "landfill_ratio": fill_ratio,
+                            "landfill_world": world(fill_c),
+                            "person_detected": person_tracker.confirmed,
+                            "person_world": person_tracker.position,
+                            "person_conf": person_tracker.conf,
+                        }
+
+                    with profiler.measure("vision.avoider_vision"):
+                        avoider.update_vision(
+                            small_img_buffer,
+                            max(current_time - last_frame_time, 1e-3),
+                            cam_total_pitch,
+                        )
+                    last_frame_time = current_time
+
+                    # --- Визуализация ---
+                    with profiler.measure("vision.annotate"):
+                        last_annotated = bgr_image.copy()
+                        draw_boxes(last_annotated, last_dets["persons"], (0, 255, 0), "PERSON")
+                        draw_boxes(
+                            last_annotated, last_dets["animals"], (0, 165, 255), "ANIMAL"
+                        )
+                        draw_boxes(last_annotated, last_dets["trash"], (255, 0, 255), "TRASH")
+                        draw_boxes(last_annotated, last_dets["fire_ml"], (0, 0, 255), "FIRE")
+                        lines = [
+                            (f"Mode: {mission.mode}  Avoid: {avoider.state}", (0, 255, 255)),
+                            (
+                                f"Water: {w_ratio*100:.1f}%  Fire Score: {fire_score:.4f}",
+                                (255, 0, 0),
+                            ),
+                            (
+                                f"Slide: {slide_ratio*100:.0f}%  Landfill: {fill_ratio*100:.0f}%",
+                                (0, 128, 255),
+                            ),
+                            (
+                                f"Cam Pitch: {math.degrees(cam_total_pitch):.0f} deg",
+                                (0, 255, 0),
+                            ),
+                            (
+                                f"Persons: {len(last_dets['persons'])} (confirmed={person_tracker.confirmed})  Animals: {len(last_dets['animals'])}",
+                                (0, 255, 0),
+                            ),
+                        ]
+                        for i, (txt, col) in enumerate(lines):
+                            cv2.putText(
+                                last_annotated,
+                                txt,
+                                (20, 30 + 28 * i),
+                                cv2.FONT_HERSHEY_SIMPLEX,
+                                0.6,
+                                col,
+                                2,
+                            )
+
+            frame_count += 1
+
+            # --- FSM ---
+            sensors = {"gps": (gps_x, gps_y, altitude), "yaw": yaw}
+            with profiler.measure("fsm.update"):
+                commands = mission.update(current_time, sensors, vision_data, last_annotated)
+
+            if commands is None:
                 break
 
-        if altitude > 5.0:
-            mission.has_taken_off = True
-        if altitude < 0.5 and current_time > 3.0 and mission.has_taken_off:
-            reset_drone("CRASH")
-            mission.reset()
-            continue
+            # --- ОБЛЁТ ПРЕПЯТСТВИЙ ---
+            with profiler.measure("avoid.process"):
+                commands = avoider.process(commands, current_time, sensors, mission.mode)
 
-        # --- ЗРЕНИЕ ---
-        if frame_count % config.FRAME_SKIP == 0:
-            raw_image = camera.getImage()
-            if raw_image:
-                image = np.frombuffer(raw_image, np.uint8).reshape(
-                    (camera.getHeight(), camera.getWidth(), 4)
-                )
-                bgr_image = cv2.cvtColor(image, cv2.COLOR_BGRA2BGR)
-                cv2.resize(
-                    bgr_image, (config.YOLO_W, config.YOLO_H), dst=small_img_buffer
-                )
+            target_pitch_dist = commands["target_pitch"]
+            yaw_disturbance = commands["target_yaw"]
+            target_altitude = commands["target_altitude"]
+            target_cam_pitch = commands["target_cam_pitch"]
 
-                cam_total_pitch = (
-                    pitch + mission.target_cam_pitch
-                )  # + = камера смотрит вниз
-                pose = {
-                    "x": gps_x,
-                    "y": gps_y,
-                    "alt": altitude,
-                    "yaw": yaw,
-                    "pitch_total": cam_total_pitch,
-                    "aspect": camera.getHeight() / camera.getWidth(),
-                }
-
-                # нейросеть: кадр в повышенном разрешении + поза на момент съёмки
-                try:
-                    vision.frame_queue.put_nowait(
-                        (
-                            cv2.resize(
-                                bgr_image, (config.YOLO_DET_W, config.YOLO_DET_H)
-                            ),
-                            pose,
-                        )
+            # --- КАМЕРА ---
+            with profiler.measure("motors.actuation"):
+                if camera_pitch_motor:
+                    camera_pitch_motor.setPosition(
+                        max(-0.5, min(0.5, target_cam_pitch - 0.1 * pitch_velocity))
                     )
-                except vision.queue.Full:
-                    pass
+                if camera_roll_motor:
+                    camera_roll_motor.setPosition(max(-0.5, min(0.5, -0.05 * roll_velocity)))
 
-                # результаты нейросети (люди / животные / мусор)
-                try:
-                    last_dets, det_pose = vision.result_queue.get_nowait()
-                    person_tracker.update(last_dets["persons"], det_pose)
-                except vision.queue.Empty:
-                    pass
-
-                # классический CV
-                w_ratio, w_edges, w_c = vision.detect_flood_accurate(
-                    small_img_buffer, pitch, mission.target_cam_pitch
+                # --- МОТОРЫ ---
+                smooth_pitch_disturbance = (
+                    smooth_pitch_disturbance * 0.95 + target_pitch_dist * 0.05
                 )
-                is_fire, fire_score = fire_detector.detect(small_img_buffer)
-                fire_c = fire_detector.info["centroid"]
-                if last_dets["fire_ml"]:  # дообученная модель огня, если подключена
-                    b = last_dets["fire_ml"][0]
-                    is_fire, fire_c = True, ((b[0] + b[2]) / 2, (b[1] + b[3]) / 2)
-                is_landslide, slide_ratio, slide_c = vision.detect_landslide(
-                    small_img_buffer
+                pitch_disturbance = smooth_pitch_disturbance
+
+                roll_input = config.K_ROLL_P * max(-1.0, min(1.0, roll)) + roll_velocity
+                pitch_input = (
+                    config.K_PITCH_P * max(-1.0, min(1.0, pitch))
+                    + pitch_velocity
+                    + pitch_disturbance
                 )
-                is_landfill, fill_ratio, fill_c = vision.detect_landfill(
-                    small_img_buffer, len(last_dets["trash"])
+                yaw_input = yaw_disturbance
+
+                clamped_diff_alt = max(
+                    -1.0, min(1.0, target_altitude - altitude + config.K_VERTICAL_OFFSET)
+                )
+                vertical_input = config.K_VERTICAL_P * math.pow(clamped_diff_alt, 3.0)
+
+                fl_in = (
+                    config.K_VERTICAL_THRUST
+                    + vertical_input
+                    - roll_input
+                    + pitch_input
+                    - yaw_input
+                )
+                fr_in = (
+                    config.K_VERTICAL_THRUST
+                    + vertical_input
+                    + roll_input
+                    + pitch_input
+                    + yaw_input
+                )
+                rl_in = (
+                    config.K_VERTICAL_THRUST
+                    + vertical_input
+                    - roll_input
+                    - pitch_input
+                    + yaw_input
+                )
+                rr_in = (
+                    config.K_VERTICAL_THRUST
+                    + vertical_input
+                    + roll_input
+                    - pitch_input
+                    - yaw_input
                 )
 
-                def world(c):
-                    return geo.pixel_to_world(c[0], c[1], pose) if c else None
+                fl.setVelocity(max(0.0, fl_in))
+                fr.setVelocity(-max(0.0, fr_in))
+                rl.setVelocity(-max(0.0, rl_in))
+                rr.setVelocity(max(0.0, rr_in))
 
-                vision_data = {
-                    "water_ratio": w_ratio,
-                    "wet_edges": w_edges,
-                    "water_world": world(w_c),
-                    "is_fire": is_fire,
-                    "fire_score": fire_score,
-                    "fire_world": world(fire_c),
-                    "is_landslide": is_landslide,
-                    "landslide_ratio": slide_ratio,
-                    "landslide_world": world(slide_c),
-                    "is_landfill": is_landfill,
-                    "landfill_ratio": fill_ratio,
-                    "landfill_world": world(fill_c),
-                    "person_detected": person_tracker.confirmed,
-                    "person_world": person_tracker.position,
-                    "person_conf": person_tracker.conf,
-                }
+            if last_annotated is not None:
+                with profiler.measure("display.queue_put"):
+                    try:
+                        vision.vis_queue.put_nowait(last_annotated)
+                    except vision.queue.Full:
+                        pass
 
-                # объезд препятствий: зрение (поток) - на каждом новом кадре
-                avoider.update_vision(
-                    bgr_image,
-                    max(current_time - last_frame_time, 1e-3),
-                    cam_total_pitch,
-                )
-                last_frame_time = current_time
-
-                # --- Визуализация ---
-                last_annotated = bgr_image.copy()
-                draw_boxes(last_annotated, last_dets["persons"], (0, 255, 0), "PERSON")
-                draw_boxes(
-                    last_annotated, last_dets["animals"], (0, 165, 255), "ANIMAL"
-                )
-                draw_boxes(last_annotated, last_dets["trash"], (255, 0, 255), "TRASH")
-                draw_boxes(last_annotated, last_dets["fire_ml"], (0, 0, 255), "FIRE")
-                lines = [
-                    (f"Mode: {mission.mode}  Avoid: {avoider.state}", (0, 255, 255)),
-                    (
-                        f"Water: {w_ratio*100:.1f}%  Fire Score: {fire_score:.4f}",
-                        (255, 0, 0),
-                    ),
-                    (
-                        f"Slide: {slide_ratio*100:.0f}%  Landfill: {fill_ratio*100:.0f}%",
-                        (0, 128, 255),
-                    ),
-                    (
-                        f"Cam Pitch: {math.degrees(cam_total_pitch):.0f} deg",
-                        (0, 255, 0),
-                    ),
-                    (
-                        f"Persons: {len(last_dets['persons'])} (confirmed={person_tracker.confirmed})  "
-                        f"Animals: {len(last_dets['animals'])}",
-                        (0, 255, 0),
-                    ),
-                ]
-                for i, (txt, col) in enumerate(lines):
-                    cv2.putText(
-                        last_annotated,
-                        txt,
-                        (20, 30 + 28 * i),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.6,
-                        col,
-                        2,
+            # 🔧 ИСПРАВЛЕННЫЙ БЛОК (Передаем yaw, avoid, persons по именам)
+            if current_time - last_telemetry_time >= config.TELEMETRY_INTERVAL:
+                with profiler.measure("logger.telemetry"):
+                    Logger.telemetry(
+                        current_time,
+                        gps_x,
+                        gps_y,
+                        altitude,
+                        mission.mode,
+                        vision_data.get("water_ratio", 0),
+                        vision_data.get("fire_score", 0),
+                        yaw=yaw,  # Реальный курс
+                        avoid=avoider.state,  # Состояние облета (строка)
+                        persons=len(last_dets["persons"]),  # Количество людей
                     )
+                last_telemetry_time = current_time
 
-        frame_count += 1
-
-        # --- FSM ---
-        sensors = {"gps": (gps_x, gps_y, altitude), "yaw": yaw}
-        commands = mission.update(current_time, sensors, vision_data, last_annotated)
-
-        if commands is None:
-            break
-
-        # --- ОБЛЁТ ПРЕПЯТСТВИЙ (поверх команд миссии) ---
-        commands = avoider.process(commands, current_time, sensors, mission.mode)
-
-        target_pitch_dist = commands["target_pitch"]
-        yaw_disturbance = commands["target_yaw"]
-        target_altitude = commands["target_altitude"]
-        target_cam_pitch = commands["target_cam_pitch"]
-
-        # --- КАМЕРА ---
-        if camera_pitch_motor:
-            camera_pitch_motor.setPosition(
-                max(-0.5, min(0.5, target_cam_pitch - 0.1 * pitch_velocity))
-            )
-        if camera_roll_motor:
-            camera_roll_motor.setPosition(max(-0.5, min(0.5, -0.05 * roll_velocity)))
-
-        # --- МОТОРЫ ---
-        smooth_pitch_disturbance = (
-            smooth_pitch_disturbance * 0.95 + target_pitch_dist * 0.05
-        )
-        pitch_disturbance = smooth_pitch_disturbance
-
-        roll_input = config.K_ROLL_P * max(-1.0, min(1.0, roll)) + roll_velocity
-        pitch_input = (
-            config.K_PITCH_P * max(-1.0, min(1.0, pitch))
-            + pitch_velocity
-            + pitch_disturbance
-        )
-        yaw_input = yaw_disturbance
-
-        clamped_diff_alt = max(
-            -1.0, min(1.0, target_altitude - altitude + config.K_VERTICAL_OFFSET)
-        )
-        vertical_input = config.K_VERTICAL_P * math.pow(clamped_diff_alt, 3.0)
-
-        fl_in = (
-            config.K_VERTICAL_THRUST
-            + vertical_input
-            - roll_input
-            + pitch_input
-            - yaw_input
-        )
-        fr_in = (
-            config.K_VERTICAL_THRUST
-            + vertical_input
-            + roll_input
-            + pitch_input
-            + yaw_input
-        )
-        rl_in = (
-            config.K_VERTICAL_THRUST
-            + vertical_input
-            - roll_input
-            - pitch_input
-            + yaw_input
-        )
-        rr_in = (
-            config.K_VERTICAL_THRUST
-            + vertical_input
-            + roll_input
-            - pitch_input
-            - yaw_input
-        )
-
-        fl.setVelocity(max(0.0, fl_in))
-        fr.setVelocity(-max(0.0, fr_in))
-        rl.setVelocity(-max(0.0, rl_in))
-        rr.setVelocity(max(0.0, rr_in))
-
-        if last_annotated is not None:
-            try:
-                vision.vis_queue.put_nowait(last_annotated)
-            except vision.queue.Full:
-                pass
-
-        if current_time - last_telemetry_time >= config.TELEMETRY_INTERVAL:
-            Logger.telemetry(
-                current_time,
-                gps_x,
-                gps_y,
-                altitude,
-                mission.mode,
-                vision_data.get("water_ratio", 0),
-                vision_data.get("fire_score", 0),
-                avoider.state,
-                len(last_dets["persons"]),
-            )
-            last_telemetry_time = current_time
+            if (
+                config.PROFILING_ENABLED
+                and config.PROFILING_REPORT_INTERVAL > 0
+                and current_time - last_prof_report >= config.PROFILING_REPORT_INTERVAL
+            ):
+                profiler.dump(
+                    f"Производительность (t={current_time:.0f} с)", reset_after=True
+                )
+                last_prof_report = current_time
 
 except (KeyboardInterrupt, SystemExit):
     print("\nЗавершение работы...")
@@ -383,5 +417,6 @@ finally:
         pass
     time.sleep(0.2)
     cv2.destroyAllWindows()
+    profiler.dump("Итоговый замер производительности")
     Logger.finish_mission()
     print("✅ Система остановлена.")

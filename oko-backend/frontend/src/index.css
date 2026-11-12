@@ -54,7 +54,6 @@ header {
 main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); min-height: 0; }
 .mapwrap { position: relative; min-height: 0; overflow: hidden; background: #070d14; }
 .leaflet-container { width: 100%; height: 100%; background: #070d14; outline: none; }
-/* лёгкое затемнение спутниковых тайлов под тёмную панель */
 .leaflet-tile-pane { filter: brightness(.82) saturate(.9); }
 
 aside {
@@ -176,7 +175,7 @@ aside {
 }
 .savebtn:disabled { opacity: .5; cursor: default; }
 
-/* ---------- маркеры карты ---------- */
+/* ---------- маркеры и области карты ---------- */
 .mk { position: relative; width: 22px; height: 22px; }
 .mk .core {
   position: absolute; inset: 5px; border-radius: 50%; background: var(--c);
@@ -189,10 +188,36 @@ aside {
 }
 @keyframes mk-pulse { from { transform: scale(.7); opacity: .8; } to { transform: scale(1.9); opacity: 0; } }
 .mk.selected .ring { border-color: #fff; }
-.drone-mk {
-  width: 18px; height: 18px; border-radius: 50% 50% 50% 4px; transform: rotate(-45deg);
-  background: var(--accent); border: 2px solid rgba(5, 8, 13, .9); box-shadow: 0 0 10px rgba(76, 195, 255, .8);
+
+/* ДРОН: Чёрный с белой контрастной обводкой и индикатором носа */
+.drone-wrap {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.25s linear;
 }
+.drone-mk {
+  width: 20px;
+  height: 20px;
+  border-radius: 50% 50% 50% 3px;
+  transform: rotate(-45deg);
+  background: #090d12 !important;              /* Чёрный цвет дрона */
+  border: 2.5px solid #ffffff !important;      /* Белая обводка */
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.9), 0 0 4px #ffffff;
+}
+
+/* Области ЧС (радиусы пожаров, квадраты наводнений, полигоны) */
+.leaflet-interactive.hazard-area {
+  cursor: pointer;
+  transition: stroke-width 0.2s, fill-opacity 0.2s;
+}
+.leaflet-interactive.hazard-area:hover {
+  fill-opacity: 0.55 !important;
+  stroke-width: 3px !important;
+}
+
 .leaflet-control-attribution { background: rgba(11, 18, 25, .8) !important; color: var(--muted) !important; font-size: 10px !important; }
 .leaflet-control-attribution a { color: var(--muted) !important; }
 .leaflet-bar a { background: var(--panel) !important; color: var(--text) !important; border-color: var(--line) !important; }

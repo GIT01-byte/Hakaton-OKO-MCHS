@@ -206,7 +206,7 @@ export default function App() {
               </span>
             ))}
             <span>
-              <i style={{ background: 'var(--accent)' }} />
+              <i style={{ background: '#090d12', border: '1.5px solid #ffffff' }} />
               Дрон
             </span>
           </div>

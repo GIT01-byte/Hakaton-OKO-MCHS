@@ -477,8 +477,8 @@ DEF DRONE Mavic2Pro {
   supervisor TRUE
   cameraSlot [
     Camera {
-      width 400
-      height 240
+      width 1280
+      height 768
       near 0.2
     }
   ]

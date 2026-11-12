@@ -1,5 +1,6 @@
 # vision.py
 import os
+import time
 import cv2
 import numpy as np
 import math
@@ -8,6 +9,7 @@ import queue
 from collections import deque
 import config
 import geo
+import profiler
 
 cv2.setNumThreads(1)
 
@@ -57,7 +59,9 @@ def split_detections(raw):
 
 def start_threads():
     def yolo_worker():
-        from ultralytics import YOLO  # импорт здесь, чтобы модуль тестировался без ultralytics
+        from ultralytics import YOLO
+        import torch
+        torch.set_num_threads(max(1, (os.cpu_count() or 4) // 2))
         model = YOLO("yolov8n.pt")
         fire_model = None
         if config.FIRE_MODEL_PATH and os.path.exists(config.FIRE_MODEL_PATH):
@@ -70,14 +74,19 @@ def start_threads():
             if item is None:
                 break
             frame, pose = item
-            res = model(frame, conf=low_conf, classes=wanted,
-                        verbose=False, imgsz=config.YOLO_IMGSZ)[0]
-            raw = [(int(b.cls[0]), float(b.conf[0]), b.xyxyn[0].tolist()) for b in res.boxes]
-            dets = split_detections(raw)
+            imgsz = (config.YOLO_IMGSZ_CLOSE
+                     if pose["alt"] < config.YOLO_CLOSE_ALT else config.YOLO_IMGSZ)
+            with profiler.measure("yolo.inference"):
+                res = model(frame, conf=low_conf, classes=wanted,
+                            verbose=False, imgsz=imgsz)[0]
+            with profiler.measure("yolo.postprocess"):
+                raw = [(int(b.cls[0]), float(b.conf[0]), b.xyxyn[0].tolist()) for b in res.boxes]
+                dets = split_detections(raw)
 
             if fire_model is not None:
-                r2 = fire_model(frame, conf=0.4, verbose=False, imgsz=config.YOLO_IMGSZ)[0]
-                dets["fire_ml"] = [b.xyxyn[0].tolist() for b in r2.boxes]
+                with profiler.measure("yolo.fire_inference"):
+                    r2 = fire_model(frame, conf=0.4, verbose=False, imgsz=config.YOLO_IMGSZ)[0]
+                    dets["fire_ml"] = [b.xyxyn[0].tolist() for b in r2.boxes]
 
             while True:
                 try:
@@ -88,18 +97,36 @@ def start_threads():
 
     def vis_worker():
         cv2.namedWindow("Oko MCHS", cv2.WINDOW_NORMAL)
+        min_interval = 1.0 / config.VIS_FPS_LIMIT
+        last_render = 0.0
         while True:
             try:
                 frame = vis_queue.get(timeout=1.0)
                 if frame is None:
                     break
-                cv2.imshow("Oko MCHS", frame)
-                key = cv2.waitKey(1) & 0xFF
-                if key != 255:
+                while True:
                     try:
-                        key_queue.put_nowait(key)
-                    except queue.Full:
-                        pass
+                        nxt = vis_queue.get_nowait()
+                    except queue.Empty:
+                        break
+                    if nxt is None:
+                        frame = None
+                        break
+                    frame = nxt
+                if frame is None:
+                    break
+                now = time.perf_counter()
+                if now - last_render < min_interval:
+                    continue
+                last_render = now
+                with profiler.measure("vis.render"):
+                    cv2.imshow("Oko MCHS", frame)
+                    key = cv2.waitKey(1) & 0xFF
+                    if key != 255:
+                        try:
+                            key_queue.put_nowait(key)
+                        except queue.Full:
+                            pass
             except queue.Empty:
                 pass
 
@@ -297,6 +324,7 @@ def detect_landfill(img, trash_count=0):
     (пакеты, бутылки, плёнка). Лес тоже "рваный", но он зелёный и однотонный по оттенку.
     Дополнительно: >= N предметов мусора (бутылки, пакеты...) по YOLO.
     Возвращает (флаг, доля захламлённых ячеек, центр).
+    Векторизовано: интегральные суммы по ячейкам + bincount по ячейкам*оттенкам.
     """
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -309,20 +337,28 @@ def detect_landfill(img, trash_count=0):
     sat = hsv[:, :, 1]
 
     pts = []
-    for r in range(rows):
-        for c in range(cols):
-            ys, xs = slice(r * ch, (r + 1) * ch), slice(c * cw, (c + 1) * cw)
-            area = ch * cw
-            if cv2.countNonZero(edges[ys, xs]) / area < 0.10:
-                continue
-            if cv2.countNonZero(green[ys, xs]) / area > 0.35:
-                continue
-            hs = hue[ys, xs][sat[ys, xs] > 60]
-            if hs.size == 0:
-                continue
-            bins = np.histogram(hs, bins=6, range=(0, 180))[0] / area
-            if int((bins > 0.05).sum()) >= 3:
-                pts.append(((c + 0.5) * cw / w, (r + 0.5) * ch / h))
+    ys, xs = np.nonzero(sat > 60)
+    grid_ok = (ys < rows * ch) & (xs < cols * cw)
+    ys, xs = ys[grid_ok], xs[grid_ok]
+    if ys.size:
+        hs = hue[ys, xs]
+        cell_idx = (ys // ch) * cols + (xs // cw)
+        hist = np.bincount(cell_idx * 6 + hs // 30,
+                           minlength=rows * cols * 6).reshape(rows, cols, 6)
+        iy = cv2.integral(edges)
+        ig = cv2.integral(green)
+        ridx = np.arange(rows + 1) * ch
+        cidx = np.arange(cols + 1) * cw
+        se = iy[np.ix_(ridx, cidx)]
+        sg = ig[np.ix_(ridx, cidx)]
+        area = (np.diff(ridx)[:, None] * np.diff(cidx)[None, :]).astype(np.float64)
+        edge_sum = (se[:-1, :-1] - se[1:, :-1] - se[:-1, 1:] + se[1:, 1:]) / 255.0
+        green_sum = (sg[:-1, :-1] - sg[1:, :-1] - sg[:-1, 1:] + sg[1:, 1:]) / 255.0
+        edge_ok = edge_sum / area >= 0.10
+        green_ok = green_sum / area <= 0.35
+        hue_ok = (hist / area[:, :, None] > 0.05).sum(axis=2) >= 3
+        for r, c in zip(*np.nonzero(edge_ok & green_ok & hue_ok)):
+            pts.append(((c + 0.5) * cw / w, (r + 0.5) * ch / h))
 
     ratio = len(pts) / (rows * cols)
     centroid = (float(np.mean([p[0] for p in pts])), float(np.mean([p[1] for p in pts]))) if pts else None

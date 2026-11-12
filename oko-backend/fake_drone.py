@@ -1,22 +1,12 @@
-"""Имитация дрона: отправляет на сервер настоящий поток данных, как будет делать Webots.
+"""Имитация дрона: отправляет на сервер поток телеметрии и находки ЧС с фото.
 
-Нужна, чтобы проверять сервер и сайт без симулятора:
-миссия -> телеметрия раз в 0.5 с -> находки с фото (многократно, как с соседних кадров) -> завершение.
-
-Сцена соответствует демо-данным (app/seed.py): пожар, наводнение, загрязнение, оползень.
-Люди не «пострадавшие», а «люди в зоне очага» (people_count): дрон считает всех,
-кто оказался рядом, — среди них могут быть просто прохожие.
-
-Запуск (сервер должен работать):
+Запуск:
     python fake_drone.py
 Параметры:
     --api http://localhost:8000   адрес сервера
-    --speed 2                     во сколько раз быстрее лететь (по умолчанию 1)
-    --loops 3                     сколько вылетов подряд (по умолчанию 1)
-    --no-images                   не отправлять фото
-    --drone-id 1                  номер дрона
-    --api-key oko-drone-key       ключ дрона (тот же, что в DRONE_API_KEY на сервере)
-Остановка: Ctrl+C (вылет аккуратно завершится).
+    --speed 1.5                   ускорение полёта (1.0 = реальное время)
+    --loops 2                     число кругов патрулирования
+    --no-images                   не прикреплять фото (для ускорения)
 """
 import argparse
 import math
@@ -27,72 +17,124 @@ import time
 
 import requests
 
-ROUTE = [(0, 0), (10, 0), (10, 10), (0, 10), (0, 0)]   # как в сцене Webots
-CRUISE_ALT = 8.0
-CRUISE_SPEED = 2.0          # м/с
-STEP = 0.5                  # секунд между отправками телеметрии
-VIEW_RADIUS = 4.0           # на каком расстоянии дрон «видит» объект, м
-SEND_EVERY = 1.0            # как часто «детектор» повторно сообщает об очаге, с
-
-# что стоит в сцене: тип, где, максимальная площадь в кадре (%), люди в зоне, подтип, фото
-# (пороги степени — те же, что в detect_emergency.py)
-SCENE = [
-    {"type": "fire",      "x": 8.0, "y": 5.0, "max_area": 11.0, "people": 2,
-     "subtype": None,           "img": "fire.jpg"},
-    {"type": "flood",     "x": 3.0, "y": 4.0, "max_area": 34.0, "people": 3,
-     "subtype": None,           "img": "flood.jpg"},
-    {"type": "pollution", "x": 2.0, "y": 8.5, "max_area": 8.0,  "people": 0,
-     "subtype": "утечка топлива", "img": "pollution.jpg"},
-    {"type": "landslide", "x": 9.0, "y": 1.5, "max_area": 6.0,  "people": 0,
-     "subtype": None,           "img": "landslide.jpg"},
+# Маршрут патрулирования (квадрат охватывает основные секторы арены)
+ROUTE = [
+    (-6.0, -6.0),
+    (14.0, -6.0),
+    (14.0, 14.0),
+    (-6.0, 14.0),
+    (-6.0, -6.0),
 ]
+
+CRUISE_ALT = 10.0           # крейсерская высота (м)
+CRUISE_SPEED = 3.0          # скорость полета дрона (м/с)
+STEP = 0.5                  # телеметрия каждые 0.5 с
+VIEW_RADIUS = 5.5           # дальность обнаружения объектами (м)
+SEND_EVERY = 1.0            # интервал между отправками по одному очагу (с)
+
+# 4 типа ЧС (соответствуют новой цветовой схеме):
+# fire (Красный), flood (Синий), pollution (Жёлтый), landslide (Серый)
+SCENE = [
+    {
+        "type": "fire",
+        "x": 10.0,
+        "y": 4.0,
+        "max_area": 16.0,       # площадь для радиуса
+        "people": 2,
+        "subtype": "очаг открытого огня",
+        "img": "fire.jpg",
+    },
+    {
+        "type": "flood",
+        "x": 3.0,
+        "y": 11.0,
+        "max_area": 35.0,       # большая площадь для фиксации квадратом
+        "people": 1,
+        "subtype": "зона подтопления (обзор 90°)",
+        "img": "flood.jpg",
+    },
+    {
+        "type": "pollution",
+        "x": -3.0,
+        "y": 5.0,
+        "max_area": 10.0,
+        "people": 0,
+        "subtype": "утечка ГСМ / свалка отходов",
+        "img": "pollution.jpg",
+    },
+    {
+        "type": "landslide",
+        "x": 4.0,
+        "y": -3.5,
+        "max_area": 12.0,
+        "people": 0,
+        "subtype": "каменный завал / оползень",
+        "img": "landslide.jpg",
+    },
+]
+
 ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "seed_assets")
 
 
-def severity_for(area):
-    """Те же пороги, что в detect_emergency.py."""
-    return "low" if area < 3 else "medium" if area < 12 else "high"
+def severity_for(area: float) -> str:
+    return "low" if area < 5 else "medium" if area < 15 else "high"
 
 
-def route_length():
+def route_length() -> float:
     return sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(ROUTE, ROUTE[1:]))
 
 
-def position_at(dist):
-    """Точка маршрута на расстоянии dist от старта и курс (рад)."""
+def position_at(dist: float):
+    """Возвращает координаты x, y и курсовой угол yaw (радианы)."""
     for (x1, y1), (x2, y2) in zip(ROUTE, ROUTE[1:]):
         seg = math.hypot(x2 - x1, y2 - y1)
         if dist <= seg:
             t = dist / seg
-            return x1 + (x2 - x1) * t, y1 + (y2 - y1) * t, math.atan2(y2 - y1, x2 - x1)
+            yaw = math.atan2(y2 - y1, x2 - x1)
+            return x1 + (x2 - x1) * t, y1 + (y2 - y1) * t, yaw
         dist -= seg
     x, y = ROUTE[-1]
-    return x, y, math.pi
+    return x, y, 0.0
 
 
 class Api:
-    def __init__(self, base, api_key):
+    def __init__(self, base: str, api_key: str):
         self.base = base.rstrip("/") + "/api"
-        self.headers = {"X-API-Key": api_key}   # дрон аутентифицируется ключом
+        self.headers = {"X-API-Key": api_key}
 
-    def post(self, path, **kw):
-        r = requests.post(self.base + path, timeout=5, headers=self.headers, **kw)
+    def post(self, path: str, **kw):
+        r = requests.post(self.base + path, timeout=4, headers=self.headers, **kw)
         r.raise_for_status()
         return r
 
-    def mission_start(self, drone_id):
+    def mission_start(self, drone_id: int) -> int:
         return self.post("/missions", json={"drone_id": drone_id}).json()["id"]
 
-    def mission_finish(self, mid):
-        self.post("/missions/%d/finish" % mid)
+    def mission_finish(self, mid: int):
+        self.post(f"/missions/{mid}/finish")
 
-    def telemetry(self, mid, x, y, z, yaw, battery, state):
-        self.post("/telemetry", json={"mission_id": mid, "x": round(x, 3), "y": round(y, 3), "z": round(z, 2),
-                                      "yaw": round(yaw, 3), "battery": round(battery, 1), "state": state})
+    def telemetry(self, mid: int, x: float, y: float, z: float, yaw: float, battery: float, state: str):
+        self.post("/telemetry", json={
+            "mission_id": mid,
+            "x": round(x, 3),
+            "y": round(y, 3),
+            "z": round(z, 2),
+            "yaw": round(yaw, 3),
+            "battery": round(battery, 1),
+            "state": state
+        })
 
-    def incident(self, mid, kind, sev, x, y, area, people, subtype, image_path):
-        data = {"mission_id": mid, "type": kind, "severity": sev, "x": round(x, 3), "y": round(y, 3),
-                "area_pct": round(area, 2), "people_count": people}
+    def incident(self, mid: int, kind: str, sev: str, x: float, y: float, area: float,
+                 people: int, subtype: str, image_path: str = None):
+        data = {
+            "mission_id": mid,
+            "type": kind,
+            "severity": sev,
+            "x": round(x, 3),
+            "y": round(y, 3),
+            "area_pct": round(area, 2),
+            "people_count": people,
+        }
         if subtype:
             data["subtype"] = subtype
         if image_path and os.path.exists(image_path):
@@ -102,91 +144,119 @@ class Api:
         return self.post("/incidents", data=data)
 
 
-def fly(api, drone_id, speed, images):
+def fly(api: Api, drone_id: int, speed: float, images: bool):
     mid = api.mission_start(drone_id)
-    print("== Вылет №%d начат" % mid)
+    print(f"\n==========================================")
+    print(f"🚀 ВЫЛЕТ №{mid} НАЧАТ (Дрон ID: {drone_id})")
+    print(f"==========================================")
+
     last_sent = {}
     sent = merged = 0
     total = route_length()
     dist = 0.0
     t0 = time.time()
-    try:
-        # --- взлёт (3 с моделируемого времени)
-        for i in range(int(3 / STEP) + 1):
-            z = CRUISE_ALT * i / int(3 / STEP)
-            api.telemetry(mid, 0, 0, max(z, 0.1), 0.0, 100.0, "takeoff")
-            time.sleep(STEP / speed)
-        print("   взлёт завершён, лечу по маршруту")
 
-        # --- патруль
+    try:
+        # 1. Взлёт
+        takeoff_steps = max(1, int(2.5 / STEP))
+        for i in range(takeoff_steps + 1):
+            z = CRUISE_ALT * (i / takeoff_steps)
+            api.telemetry(mid, ROUTE[0][0], ROUTE[0][1], max(z, 0.1), 0.0, 100.0, "takeoff")
+            time.sleep(STEP / speed)
+        print(" -> Взлёт выполнен, набор высоты 10м. Начало патрулирования...")
+
+        # 2. Полёт по квадратному маршруту
         while dist < total:
             x, y, yaw = position_at(dist)
-            battery = 100 - 12 * dist / total
+            battery = max(10.0, 100.0 - (20.0 * (dist / total)))
             api.telemetry(mid, x, y, CRUISE_ALT, yaw, battery, "patrol")
 
             now = time.time()
             for obj in SCENE:
                 d = math.hypot(obj["x"] - x, obj["y"] - y)
-                if d > VIEW_RADIUS or now - last_sent.get(obj["type"], 0) < SEND_EVERY / speed:
-                    continue
-                last_sent[obj["type"]] = now
-                # «детектор» ошибается в положении на ~0.4 м, а площадь зависит от расстояния;
-                # людей в кадре считает с погрешностью ±1 (часть уходит, часть приходит)
-                area = obj["max_area"] * (1 - d / (VIEW_RADIUS * 1.3)) * random.uniform(0.85, 1.0)
-                ex = obj["x"] + random.uniform(-0.4, 0.4)
-                ey = obj["y"] + random.uniform(-0.4, 0.4)
-                sev = severity_for(area)
-                people = max(0, obj["people"] + random.choice((-1, 0, 0, 1))) if obj["people"] else 0
-                r = api.incident(mid, obj["type"], sev, ex, ey, area, people, obj["subtype"],
-                                 os.path.join(ASSETS, obj["img"]) if images else None)
-                body = r.json()
-                sent += 1
-                merged += 1 if body["merged"] else 0
-                print("   %-9s %-6s площадь %5.1f%%  людей в зоне: %d  -> №%d (%s, кадров: %d)" % (
-                    obj["type"], sev, area, people, body["id"],
-                    "обновлена" if body["merged"] else "НОВАЯ", body["detections"]))
+                if d <= VIEW_RADIUS:
+                    if now - last_sent.get(obj["type"], 0) >= (SEND_EVERY / speed):
+                        last_sent[obj["type"]] = now
+                        
+                        # Расчет видимой площади в зависимости от дистанции
+                        factor = max(0.4, 1.0 - (d / (VIEW_RADIUS * 1.2)))
+                        area = obj["max_area"] * factor * random.uniform(0.9, 1.0)
+                        sev = severity_for(area)
+                        
+                        # Небольшой шум сенсоров к координатам (±0.3м)
+                        det_x = obj["x"] + random.uniform(-0.3, 0.3)
+                        det_y = obj["y"] + random.uniform(-0.3, 0.3)
+                        people = obj["people"]
+
+                        img_file = os.path.join(ASSETS, obj["img"]) if images else None
+                        r = api.incident(
+                            mid=mid,
+                            kind=obj["type"],
+                            sev=sev,
+                            x=det_x,
+                            y=det_y,
+                            area=area,
+                            people=people,
+                            subtype=obj["subtype"],
+                            image_path=img_file
+                        )
+                        body = r.json()
+                        sent += 1
+                        if body.get("merged"):
+                            merged += 1
+                            status_str = f"Обновлена (кадров: {body['detections']})"
+                        else:
+                            status_str = "НОВАЯ ЧС"
+
+                        print(f"  [ДЕТЕКЦИЯ] {obj['type'].upper():<10} | Степень: {sev:<6} | "
+                              f"Площадь: {area:4.1f}% | X={det_x:5.1f}, Y={det_y:5.1f} -> {status_str}")
 
             dist += CRUISE_SPEED * STEP
             time.sleep(STEP / speed)
 
-        # --- посадка
-        for i in range(int(2 / STEP) + 1):
-            z = CRUISE_ALT * (1 - i / int(2 / STEP))
-            api.telemetry(mid, 0, 0, max(z, 0.1), math.pi, 88.0, "land")
+        # 3. Посадка
+        print(" -> Завершение маршрута, посадка на базу...")
+        land_steps = max(1, int(2.0 / STEP))
+        for i in range(land_steps + 1):
+            z = CRUISE_ALT * (1.0 - (i / land_steps))
+            api.telemetry(mid, ROUTE[-1][0], ROUTE[-1][1], max(z, 0.1), 0.0, 85.0, "land")
             time.sleep(STEP / speed)
+
     finally:
         api.mission_finish(mid)
-        print("== Вылет №%d завершён: отправлено сообщений о ЧС %d, из них обновили уже известные %d (%.0f с)"
-              % (mid, sent, merged, time.time() - t0))
+        elapsed = time.time() - t0
+        print(f"==========================================")
+        print(f"🏁 ВЫЛЕТ №{mid} ЗАВЕРШЁН за {elapsed:.1f} сек.")
+        print(f"   Отчетов ЧС: {sent} (из них объединено в очаги: {merged})")
+        print(f"==========================================\n")
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Имитация дрона для проверки сервера и сайта")
+    ap = argparse.ArgumentParser(description="Имитатор патрульного дрона МЧС")
     ap.add_argument("--api", default="http://localhost:8000")
-    ap.add_argument("--speed", type=float, default=1.0)
-    ap.add_argument("--loops", type=int, default=1)
-    ap.add_argument("--no-images", action="store_true")
+    ap.add_argument("--speed", type=float, default=1.2, help="Множитель скорости полёта")
+    ap.add_argument("--loops", type=int, default=1, help="Сколько кругов облететь")
+    ap.add_argument("--no-images", action="store_true", help="Не загружать фотографии")
     ap.add_argument("--drone-id", type=int, default=1)
     ap.add_argument("--api-key", default=os.getenv("DRONE_API_KEY", "oko-drone-key"))
-    a = ap.parse_args()
+    args = ap.parse_args()
 
-    api = Api(a.api, a.api_key)
+    api = Api(args.api, args.api_key)
     try:
-        requests.get(a.api.rstrip("/") + "/api/health", timeout=3).raise_for_status()
+        requests.get(f"{args.api.rstrip('/')}/api/health", timeout=3).raise_for_status()
     except Exception as e:
-        print("Сервер недоступен по адресу %s: %s\nЗапустите: uvicorn app.main:app --reload" % (a.api, e))
+        print(f"ОШИБКА: Сервер {args.api} недоступен ({e}). Сначала запустите uvicorn!")
         sys.exit(1)
 
     try:
-        for n in range(a.loops):
-            fly(api, a.drone_id, max(a.speed, 0.1), images=not a.no_images)
-            if n < a.loops - 1:
-                time.sleep(2)
+        for i in range(args.loops):
+            if args.loops > 1:
+                print(f"--- Круг {i + 1} из {args.loops} ---")
+            fly(api, args.drone_id, max(args.speed, 0.2), images=not args.no_images)
+            if i < args.loops - 1:
+                time.sleep(2.0)
     except KeyboardInterrupt:
-        print("\nОстановлено пользователем")
-    except requests.HTTPError as e:
-        print("Сервер вернул ошибку:", e, getattr(e.response, "text", ""))
-        sys.exit(2)
+        print("\nПолет прерван оператором (Ctrl+C).")
 
 
 if __name__ == "__main__":

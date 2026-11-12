@@ -4,14 +4,14 @@ export const TYPE_LABELS: Record<IncidentType, string> = {
   fire: 'Пожар',
   flood: 'Наводнение',
   pollution: 'Загрязнение',
-  landslide: 'Оползень',
+  landslide: 'Завал',
 }
 
 export const TYPE_COLORS: Record<IncidentType, string> = {
-  fire: '#ff6a3d',
-  flood: '#3da5ff',
-  pollution: '#b388ff',
-  landslide: '#d9a05b',
+  fire: '#ef4444',       // Красный (Пожар)
+  flood: '#2563eb',      // Синий (Наводнение)
+  pollution: '#eab308',  // Желтый (Загрязнения, свалки, утечки топлива)
+  landslide: '#64748b',  // Серый (Завал / сходы грунта)
 }
 
 export const SEVERITY_LABELS: Record<Severity, string> = {

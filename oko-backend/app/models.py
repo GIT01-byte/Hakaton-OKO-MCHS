@@ -15,45 +15,62 @@ class Drone(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(64), unique=True)
     model: Mapped[str] = mapped_column(String(64), default="DJI Mavic 2 Pro")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow
+    )
 
 
 class User(Base):
-    """Оператор/диспетчер службы. Роль определяет, какие типы ЧС видит и что может менять."""
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     username: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(256))
-    role: Mapped[str] = mapped_column(String(16), default="viewer")  # operator|firefighter|ecologist|viewer
+    role: Mapped[str] = mapped_column(String(16), default="viewer")
     display_name: Mapped[str] = mapped_column(String(128), default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow
+    )
 
 
 class Mission(Base):
-    """Один вылет (патруль)."""
     __tablename__ = "missions"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     drone_id: Mapped[int] = mapped_column(ForeignKey("drones.id"), index=True)
-    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    status: Mapped[str] = mapped_column(String(16), default="active")  # active | finished
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow
+    )
+    finished_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    status: Mapped[str] = mapped_column(String(16), default="active")
 
 
 class Telemetry(Base):
-    """Где дрон находился в конкретный момент."""
     __tablename__ = "telemetry"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     mission_id: Mapped[int] = mapped_column(ForeignKey("missions.id"), index=True)
-    time: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    time: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, index=True
+    )
     x: Mapped[float] = mapped_column(Float)
     y: Mapped[float] = mapped_column(Float)
     z: Mapped[float] = mapped_column(Float, default=0.0)
     yaw: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     battery: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    state: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)  # takeoff|patrol|land...
+    state: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+
+    # ── НОВОЕ: обогащение от детекторов дрона (из logger.py) ──
+    water_pct: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True, default=0.0
+    )
+    fire_score: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True, default=0.0
+    )
+    avoid: Mapped[Optional[str]] = mapped_column(String(16), nullable=True, default="")
+    persons: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=0)
 
     @property
     def lat(self) -> float:
@@ -65,26 +82,25 @@ class Telemetry(Base):
 
 
 class Incident(Base):
-    """Найденная ЧС (очаг пожара, зона наводнения, загрязнение, оползень).
-
-    people_count — сколько людей сейчас в зоне очага (не «пострадавшие»:
-    дрон не отличает прохожего от пострадавшего, он просто считает людей).
-    """
     __tablename__ = "incidents"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     mission_id: Mapped[int] = mapped_column(ForeignKey("missions.id"), index=True)
-    type: Mapped[str] = mapped_column(String(16), index=True)        # fire | flood | pollution | landslide
-    severity: Mapped[str] = mapped_column(String(8))                 # low | medium | high
-    status: Mapped[str] = mapped_column(String(16), default="new", index=True)  # new|confirmed|closed
+    type: Mapped[str] = mapped_column(String(16), index=True)
+    severity: Mapped[str] = mapped_column(String(8))
+    status: Mapped[str] = mapped_column(String(16), default="new", index=True)
     x: Mapped[float] = mapped_column(Float)
     y: Mapped[float] = mapped_column(Float)
     area_pct: Mapped[float] = mapped_column(Float, default=0.0)
-    detections: Mapped[int] = mapped_column(Integer, default=1)      # сколько кадров подтвердили очаг
-    people_count: Mapped[int] = mapped_column(Integer, default=0)    # людей в зоне очага
-    subtype: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)  # уточнение: "утечка топлива"
-    first_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    detections: Mapped[int] = mapped_column(Integer, default=1)
+    people_count: Mapped[int] = mapped_column(Integer, default=0)
+    subtype: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    first_seen: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow
+    )
+    last_seen: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, index=True
+    )
     image_path: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 

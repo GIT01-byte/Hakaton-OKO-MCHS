@@ -5,7 +5,6 @@ from pydantic import BaseModel, ConfigDict, Field, PlainSerializer
 
 from .logic import to_utc_iso
 
-# Время всегда отдаём в UTC с явным указанием пояса: 2026-11-11T09:30:00+00:00
 UtcDT = Annotated[datetime, PlainSerializer(to_utc_iso, return_type=str)]
 
 IncidentStatus = Literal["new", "confirmed", "closed"]
@@ -42,7 +41,13 @@ class TelemetryIn(BaseModel):
     yaw: Optional[float] = None
     battery: Optional[float] = Field(default=None, ge=0, le=100)
     state: Optional[str] = None
-    time: Optional[datetime] = None  # если не указано, ставится время сервера
+    time: Optional[datetime] = None
+
+    # ── НОВОЕ: обогащение от дрона (logger.py) ──
+    water_pct: Optional[float] = Field(default=0.0, ge=0, le=100)
+    fire_score: Optional[float] = Field(default=0.0, ge=0, le=1)
+    avoid: Optional[str] = None
+    persons: Optional[int] = Field(default=0, ge=0)
 
 
 class TelemetryOut(ORM):
@@ -57,6 +62,12 @@ class TelemetryOut(ORM):
     yaw: Optional[float] = None
     battery: Optional[float] = None
     state: Optional[str] = None
+
+    # ── НОВОЕ ──
+    water_pct: Optional[float] = None
+    fire_score: Optional[float] = None
+    avoid: Optional[str] = None
+    persons: Optional[int] = None
 
 
 class IncidentOut(ORM):
@@ -80,7 +91,7 @@ class IncidentOut(ORM):
 
 
 class IncidentCreated(IncidentOut):
-    merged: bool = False  # True, если обновлён уже известный очаг, а не создан новый
+    merged: bool = False
 
 
 class IncidentPatch(BaseModel):
@@ -98,7 +109,7 @@ class UserOut(BaseModel):
     username: str
     role: Role
     display_name: str
-    allowed_types: Optional[list] = None  # None = все типы ЧС
+    allowed_types: Optional[list] = None
 
 
 class LoginOut(BaseModel):

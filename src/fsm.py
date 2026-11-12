@@ -54,12 +54,37 @@ class MissionFSM:
         self.flood_alt_goal = 0.0
         self.takeoff_time = None
         self.low_battery = False
+        self.fire_step = 0
+        self.fire_prev_score = 0.0
+        self.fire_best_score = 0.0
+        self.fire_step_timer = 0.0
+        self.fire_frames_saved = 0
+        self.flood_base_yaw = 0.0
+        self.flood_assess = None
+        self._far_cooldown = 0.0
 
     # ------------------------------------------------------------------ helpers
     def _enter(self, mode, t):
         self.mode = mode
         self.state_timer = t
         self.incident_metric = 0.0
+
+    def _route_dist(self, x, y):
+        """Расстояние до ближайшей точки патрульного маршрута или базы, м."""
+        pts = list(self.waypoints) + [(config.START_X, config.START_Y)]
+        return min(math.hypot(px - x, py - y) for px, py in pts)
+
+    def _init_flood_assess(self):
+        """Состояние разведки воды: сектора осмотра влево/вправо и накопленные доли воды."""
+        self.flood_base_yaw = self.yaw
+        self.flood_assess = {
+            "offsets": list(config.FLOOD_ASSESS_YAW_OFFSETS),
+            "idx": 0,
+            "step_timer": None,
+            "cur_ratio": 0.0,
+            "best_ratio": -1.0,
+            "best_offset": 0.0,
+        }
 
     def _xy(self, vd, key):
         return vd.get(key) or (self.gps_x, self.gps_y)

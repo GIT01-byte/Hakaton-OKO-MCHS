@@ -1,0 +1,7 @@
+psql -U oko -d oko -c "
+  ALTER TABLE telemetry
+    ADD COLUMN IF NOT EXISTS water_pct  DOUBLE PRECISION DEFAULT 0.0,
+    ADD COLUMN IF NOT EXISTS fire_score DOUBLE PRECISION DEFAULT 0.0,
+    ADD COLUMN IF NOT EXISTS avoid      VARCHAR(16)      DEFAULT '',
+    ADD COLUMN IF NOT EXISTS persons    INTEGER          DEFAULT 0;
+"
