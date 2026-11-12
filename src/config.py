@@ -1,7 +1,12 @@
 # config.py
 import math
 
-TELEMETRY_INTERVAL = 0.5  # --- Стартовые координаты ---
+# --- Телеметрия и логирование ---
+TELEMETRY_FILE = "./log/telemetry_log.csv"
+REPORTS_FILE = "./log/mission_reports.json"
+TELEMETRY_INTERVAL = 0.5
+
+# --- Стартовые координаты ---
 START_X = 0
 START_Y = 0
 START_Z = 0

@@ -7,10 +7,6 @@ import threading
 import queue
 import requests
 
-# --- Файлы для локального хранения ---
-TELEMETRY_FILE = "telemetry_log.csv"
-REPORTS_FILE = "mission_reports.json"
-
 # --- Настройки сервера ---
 API_URL = os.getenv("OKO_API_URL", "http://127.0.0.1:8000/api")
 API_KEY = os.getenv("OKO_API_KEY", "oko-drone-key")
