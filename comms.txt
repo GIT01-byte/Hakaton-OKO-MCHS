@@ -7,8 +7,6 @@ $env:WEBOTS_HOME = "C:\Program Files\Webots"
 $env:PATH = "$env:WEBOTS_HOME\lib\controller;$env:WEBOTS_HOME\msys64\mingw64\bin;$env:PATH"
 $env:PYTHONPATH = "$env:WEBOTS_HOME\lib\controller\python"
 
-
-
 webots-controller --protocol=tcp --ip-address=127.0.0.1 main.py
 
 webots-controller --protocol=tcp --ip-address=172.22.64.169 main.py
