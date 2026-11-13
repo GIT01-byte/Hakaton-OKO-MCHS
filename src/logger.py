@@ -6,6 +6,7 @@ import time
 import threading
 import queue
 import requests
+from config import TELEMETRY_FILE, REPORTS_FILE
 
 # --- Настройки сервера ---
 API_URL = os.getenv("OKO_API_URL", "http://127.0.0.1:8000/api")

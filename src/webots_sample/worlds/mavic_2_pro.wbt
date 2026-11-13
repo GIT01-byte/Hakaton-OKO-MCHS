@@ -31,8 +31,8 @@ WorldInfo {
   }
 }
 Viewpoint {
-  orientation -0.3641236591465943 -0.08550147569659643 0.927417628958712 3.603329238795561
-  position 147.28559557432752 91.33972470974051 14.098706700393292
+  orientation -0.2114244006094995 0.11717489749663486 0.970345178904686 2.2103933260605024
+  position 19.53757780860166 -71.98835261801192 36.76191345689214
   near 0.2
   follow "Mavic 2 PRO"
   followSmoothness 0.2
@@ -171,7 +171,7 @@ DEF WATER Fluid {
         roughness 0.1
         metalness 0.8
         textureTransform TextureTransform {
-          translation -0.9400000000000526 0
+          translation -0.8700000000000445 0
         }
       }
       geometry Box {
@@ -239,8 +239,8 @@ Rock {
   scale 80
 }
 Rock {
-  translation 57.4344 8.69519 12.0992
-  rotation 0.0719793054261785 -0.8712550656797878 -0.48552403660135474 3.01771
+  translation 53.58521732126771 4.5461651392658515 0.7627577716837847
+  rotation 0.5860163216284163 -0.43410353018188086 -0.68420683705202 2.516738924920475
   name "rock(17)"
   scale 17
   physics Physics {
@@ -248,8 +248,8 @@ Rock {
   }
 }
 Rock {
-  translation 53.5504 7.72808 10.1923
-  rotation -0.6650038789936144 0.033861693838410103 0.7460718642422057 -1.6126453071795863
+  translation 56.2164102215267 -1.2770477168031418 1.7967251705587814
+  rotation 0.7658857388775413 -0.46215782555071294 0.44702257131630313 -0.29787687614687375
   name "rock(14)"
   scale 40
   physics Physics {
@@ -257,8 +257,8 @@ Rock {
   }
 }
 Rock {
-  translation 58.3402 6.17164 9.27363
-  rotation 0.2566049889150497 -0.6892859702238807 0.6775239707319815 -2.6989953071795862
+  translation 62.223339844091434 4.425537709619937 1.449122994311822
+  rotation -0.178132036083266 0.7660317080861176 0.6176280433460699 -2.753058733835884
   name "rock(19)"
   scale 34
   physics Physics {
@@ -266,8 +266,8 @@ Rock {
   }
 }
 Rock {
-  translation 55.1654 8.47373 13.8865
-  rotation -0.02696610185772415 -0.0021348801470742204 -0.9996340688658807 -2.0719353071795865
+  translation 52.345747758993326 1.5218193195475833 1.158471566077516
+  rotation 0.5540224636456624 0.6609896502132726 -0.5061144061246691 -0.8288905310271888
   name "rock(16)"
   scale 25
   physics Physics {
@@ -275,8 +275,8 @@ Rock {
   }
 }
 Rock {
-  translation 57.414 5.48794 11.8523
-  rotation 0.8462195862839803 -0.4983763452887077 0.18850313060010368 -1.2823853071795863
+  translation 59.57871512434709 1.413014016299841 0.7338874938525506
+  rotation -0.6260146584673312 0.403936055337101 -0.6670392121777647 2.8122645267760107
   name "rock(18)"
   scale 18
   physics Physics {
@@ -284,8 +284,8 @@ Rock {
   }
 }
 Rock {
-  translation 55.4365 3.9539 9.76824
-  rotation 0.2064439861410028 -0.9505419361882209 0.2320579844214839 -2.377265307179586
+  translation 56.29460856845211 4.567838777969224 0.46652131153196885
+  rotation 0.08421844582211442 0.6922602085536202 -0.7167168597407245 -2.5046324907442523
   name "rock(13)"
   scale 12
   physics Physics {
@@ -293,8 +293,8 @@ Rock {
   }
 }
 Rock {
-  translation 56.0859 7.10202 11.4329
-  rotation -0.0404856990200486 -0.6032056859224493 0.7965574735357679 -1.1942781345385116
+  translation 58.636317811877795 3.7832688267321246 0.45138994699552654
+  rotation 0.13146714051129285 0.4732497694219276 -0.8710631703314499 -1.4989505271389332
   name "rock(15)"
   scale 10
   physics Physics {
@@ -471,14 +471,21 @@ Forest {
   minRadius 3
 }
 DEF DRONE Mavic2Pro {
-  translation 0.0237719 0.0174609 0.108459
-  rotation 0.001785439213029416 -0.0019219091528773662 0.9999965592300928 -2.7162153071795863
+  hidden position_0_0 1.3754436204499786e-09
+  hidden linearVelocity_0 1.2954042627343167 1.2078718598544897 -0.13142916965764187
+  hidden angularVelocity_0 -1.6457016289276628e-05 3.035052472985682e-05 0.0007186599426367536
+  hidden position_5_0 -3.2383239907605657e-06
+  hidden rotation_6 0 -1 0 3.2383209540441897e-06
+  hidden position_6_0 4.027047591743092e-06
+  hidden rotation_7 1 0 0 4.027064658694974e-06
+  translation 25.382002661299833 26.392180361472814 15.023747192419282
+  rotation -0.06024840742040729 0.15560683428821398 0.9859800416469416 0.7737488613077549
   controller "<extern>"
   supervisor TRUE
   cameraSlot [
     Camera {
-      width 1280
-      height 768
+      width 400
+      height 240
       near 0.2
     }
   ]
@@ -489,8 +496,18 @@ Pedestrian {
   name "pedestrian(1)"
 }
 BmwX5 {
-  translation 57.5695 1.67814 0.467044
-  rotation -0.0015287803290359944 -0.004819981037393812 0.9999872152250271 2.86702
+  hidden position_0_0 7.545682430136184e-07
+  hidden position2_0_0 -9.797020114631765e-06
+  hidden position_0_1 7.682462772156697e-07
+  hidden position2_0_1 1.737403492856997e-05
+  hidden position_0_2 -0.01213168438952561
+  hidden position_0_3 -0.027462799181127373
+  hidden rotation_1 3.7617003067108585e-07 0.9970470773291711 -0.076792744378726 9.82604760168277e-06
+  hidden rotation_2 3.83748162385333e-07 0.9990238124579535 -0.04417490398210747 1.7391027702488158e-05
+  hidden rotation_3 0 1 0 0.012131684389537335
+  hidden rotation_4 0 -1 0 0.027462799181122852
+  translation 57.58297868170321 1.6732116333393008 0.20421846080811365
+  rotation 0.006491565180793823 0.0026183706791428657 0.9999755015581582 2.862651912171436
   name "vehicle(1)"
 }
 DEF SOLID_1 Solid {
@@ -499,10 +516,10 @@ DEF SOLID_1 Solid {
   children [
     Shape {
       appearance PBRAppearance {
-        baseColor 1 0.05 0
+        baseColor 1 0.85 0
         roughness 0.2
         metalness 0
-        emissiveColor 1 0.05 0
+        emissiveColor 1 0.85 0
         emissiveIntensity 0.8
       }
       geometry Cone {
@@ -519,10 +536,10 @@ DEF SOLID_11 Solid {
   children [
     Shape {
       appearance PBRAppearance {
-        baseColor 1 0.05 0
+        baseColor 1 0.85 0
         roughness 0.2
         metalness 0
-        emissiveColor 1 0.05 0
+        emissiveColor 1 0.85 0
         emissiveIntensity 0.8
       }
       geometry Cone {
@@ -539,10 +556,10 @@ DEF SOLID_111 Solid {
   children [
     Shape {
       appearance PBRAppearance {
-        baseColor 1 0.05 0
+        baseColor 1 0.85 0
         roughness 0.2
         metalness 0
-        emissiveColor 1 0.05 0
+        emissiveColor 1 0.85 0
         emissiveIntensity 0.8
       }
       geometry Cone {
@@ -559,10 +576,10 @@ DEF SOLID_1111 Solid {
   children [
     Shape {
       appearance PBRAppearance {
-        baseColor 1 0.05 0
+        baseColor 1 0.85 0
         roughness 0.2
         metalness 0
-        emissiveColor 1 0.05 0
+        emissiveColor 1 0.85 0
         emissiveIntensity 0.8
       }
       geometry Cone {
@@ -579,10 +596,10 @@ DEF SOLID_2 Solid {
   children [
     Shape {
       appearance PBRAppearance {
-        baseColor 1 0.45 0
+        baseColor 1 0.05 0
         roughness 0.2
         metalness 0
-        emissiveColor 1 0.45 0
+        emissiveColor 1 0.05 0
         emissiveIntensity 0.8
       }
       geometry Cone {
@@ -599,10 +616,10 @@ DEF SOLID_22 Solid {
   children [
     Shape {
       appearance PBRAppearance {
-        baseColor 1 0.45 0
+        baseColor 1 0.05 0
         roughness 0.2
         metalness 0
-        emissiveColor 1 0.45 0
+        emissiveColor 1 0.05 0
         emissiveIntensity 0.8
       }
       geometry Cone {
@@ -619,10 +636,10 @@ DEF SOLID_222 Solid {
   children [
     Shape {
       appearance PBRAppearance {
-        baseColor 1 0.45 0
+        baseColor 1 0.05 0
         roughness 0.2
         metalness 0
-        emissiveColor 1 0.45 0
+        emissiveColor 1 0.05 0
         emissiveIntensity 0.8
       }
       geometry Cone {
@@ -639,10 +656,10 @@ DEF SOLID_2222 Solid {
   children [
     Shape {
       appearance PBRAppearance {
-        baseColor 1 0.45 0
+        baseColor 1 0.05 0
         roughness 0.2
         metalness 0
-        emissiveColor 1 0.45 0
+        emissiveColor 1 0.05 0
         emissiveIntensity 0.8
       }
       geometry Cone {
@@ -659,10 +676,10 @@ DEF SOLID_22222 Solid {
   children [
     Shape {
       appearance PBRAppearance {
-        baseColor 1 0.45 0
+        baseColor 1 0.05 0
         roughness 0.2
         metalness 0
-        emissiveColor 1 0.45 0
+        emissiveColor 1 0.05 0
         emissiveIntensity 0.8
       }
       geometry Cone {
@@ -679,10 +696,10 @@ DEF SOLID_3 Solid {
   children [
     Shape {
       appearance PBRAppearance {
-        baseColor 1 0.85 0
+        baseColor 1 0.45 0
         roughness 0.2
         metalness 0
-        emissiveColor 1 0.85 0
+        emissiveColor 1 0.45 0
         emissiveIntensity 0.8
       }
       geometry Cone {
@@ -699,10 +716,10 @@ DEF SOLID_33 Solid {
   children [
     Shape {
       appearance PBRAppearance {
-        baseColor 1 0.85 0
+        baseColor 1 0.45 0
         roughness 0.2
         metalness 0
-        emissiveColor 1 0.85 0
+        emissiveColor 1 0.45 0
         emissiveIntensity 0.8
       }
       geometry Cone {
@@ -719,10 +736,10 @@ DEF SOLID_333 Solid {
   children [
     Shape {
       appearance PBRAppearance {
-        baseColor 1 0.85 0
+        baseColor 1 0.45 0
         roughness 0.2
         metalness 0
-        emissiveColor 1 0.85 0
+        emissiveColor 1 0.45 0
         emissiveIntensity 0.8
       }
       geometry Cone {
@@ -739,10 +756,10 @@ DEF SOLID_3333 Solid {
   children [
     Shape {
       appearance PBRAppearance {
-        baseColor 1 0.85 0
+        baseColor 1 0.45 0
         roughness 0.2
         metalness 0
-        emissiveColor 1 0.85 0
+        emissiveColor 1 0.45 0
         emissiveIntensity 0.8
       }
       geometry Cone {

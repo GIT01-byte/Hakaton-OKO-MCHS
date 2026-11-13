@@ -29,17 +29,20 @@ class IncidentReporter:
     """Дедупликация инцидентов + степень опасности; сам отчёт пишет Logger.report (mission_reports.json)."""
 
     def __init__(self):
-        self.known = []     # (kind, x, y) - уже отправленные
-        self.ignored = []   # (kind, x, y) - ложные тревоги
+        self.known = []  # (kind, x, y) - уже отправленные
+        self.ignored = []  # (kind, x, y) - ложные тревоги
         self.counter = 0
 
     def _near(self, lst, kind, x, y, radius):
-        return any(k == kind and math.hypot(x - kx, y - ky) < radius for k, kx, ky in lst)
+        return any(
+            k == kind and math.hypot(x - kx, y - ky) < radius for k, kx, ky in lst
+        )
 
     def is_known(self, kind, x, y):
         r = config.DEDUP_RADIUS.get(kind, 40.0)
-        return (self._near(self.known, kind, x, y, r) or
-                self._near(self.ignored, kind, x, y, config.PERSON_IGNORE_RADIUS))
+        return self._near(self.known, kind, x, y, r) or self._near(
+            self.ignored, kind, x, y, config.PERSON_IGNORE_RADIUS
+        )
 
     def ignore(self, kind, x, y):
         self.ignored.append((kind, x, y))
@@ -51,7 +54,7 @@ class IncidentReporter:
         self.counter += 1
         details = dict(details)
         area = details.pop("area_m2", 0.0)
-        fname = f"alert_{kind}_{self.counter:03d}_{int(x)}_{int(y)}.jpg"
+        fname = f"./drone_alerts/alert_{kind}_{self.counter:03d}_{int(x)}_{int(y)}.jpg"
         if image is not None:
             cv2.imwrite(fname, image)
         extra = {"id": self.counter, "severity": sev}
@@ -69,9 +72,12 @@ class IncidentReporter:
         def post():
             try:
                 import urllib.request
+
                 req = urllib.request.Request(
-                    config.HQ_URL, data=json.dumps(rec).encode("utf-8"),
-                    headers={"Content-Type": "application/json"})
+                    config.HQ_URL,
+                    data=json.dumps(rec).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                )
                 urllib.request.urlopen(req, timeout=3)
             except Exception as e:
                 print(f"[HQ] не удалось отправить: {e}")
